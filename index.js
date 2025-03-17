@@ -84,7 +84,7 @@ app.post('/createPrivateChat/:userId', validateToken, async (req, res, next) => 
         `;
 
         const [existingChat] = await pool.query(query, [targetUserId, req.userId]);
-        console.log(existingChat);
+        
         
         
         
@@ -103,10 +103,10 @@ app.post('/createPrivateChat/:userId', validateToken, async (req, res, next) => 
         }
         query = `SELECT * FROM CHATS WHERE ID=?`;
         const [getChat] = await pool.query(query,[existingChat[0].chat_id]);
-        query = `SELECT * FROM chat_participants INNER JOIN USERS ON USERS.ID = chat_participants.USER_ID
+        query = `SELECT user_id as id,username FROM chat_participants INNER JOIN USERS ON USERS.ID = chat_participants.USER_ID
         WHERE CHAT_ID=?`;
         const [getChatParticipants] = await pool.query(query,[existingChat[0].chat_id]);
-        return res.status(200).json({chat:getChat[0],chatParticipants:getChatParticipants})
+        return res.status(200).json({chat:getChat[0],chatParticipants:getChatParticipants,currentUserId:req.userId})
     } catch (error) {
         return res.status(500).json({ message: "Server error", error: error });
     }
@@ -136,11 +136,11 @@ app.post('/createGroup',validateToken, async (req,res,next) => {
         const [getChat] = await pool.query(query,[newChat.insertId]);
         
         
-        query = `SELECT * FROM chat_participants INNER JOIN  USERS ON USERS.ID = chat_participants.user_id
+        query = `SELECT user_id as id,username,created_at,updated_at,role FROM chat_participants INNER JOIN  USERS ON USERS.ID = chat_participants.user_id
         WHERE chat_id=?`
         console.log(newChat.insertId);
         const [getChatParticipants] = await pool.query(query,[newChat.insertId])
-        return res.status(200).json({chat:getChat,chatParticipants:getChatParticipants});
+        return res.status(200).json({chat:getChat[0],chatParticipants:getChatParticipants,currentUserId:req.userId});
     } catch (error) {
         return res.status(500).json({ message: "Server error", error: error });
     }
@@ -156,14 +156,19 @@ app.post("/sendMessage/:chatId",validateToken,async (req,res,next) => {
         if (!checkChatExists[0]) {
             return res.status(404).json({message:"chat with this Id doesnt exists"});
         }
-        query = `SELECT * FROM chat_participants WHERE CHAT_ID=?`
-        const [isUserChatParticipant] = await pool.query(query,[chatId]);
+        query = `SELECT * FROM chat_participants WHERE CHAT_ID=? AND USER_ID=?`
+        const [isUserChatParticipant] = await pool.query(query,[chatId,req.userId]);
         if (!isUserChatParticipant[0]) {
             return res.status(403).json({ message: "You are not a participant of this chat" });
         }
+
         query = `INSERT INTO MESSAGES(sender_id,message,chatId)VALUES(?,?,?)`;
+
         const [newChatMessage] = await pool.query(query,[req.userId,message,chatId]);
-        query = `SELECT * FROM MESSAGES WHERE ID=?`
+        query = `UPDATE chats SET lastMessage=? where id=?`;
+        const [updateLatestMessage] = await pool.query(query,[newChatMessage.insertId,chatId])
+        query = `SELECT MESSAGES.ID as id, message,sender_id, username as sender_username,chatId,created_at,updated_at
+          FROM  MESSAGES INNER JOIN USERS ON USERS.ID=MESSAGES.SENDER_ID  WHERE MESSAGES.ID=? `
         const [getChatMessage] = await pool.query(query,[newChatMessage.insertId]);
         return res.status(200).json({message:getChatMessage[0]})
     } catch (error) {
@@ -171,9 +176,11 @@ app.post("/sendMessage/:chatId",validateToken,async (req,res,next) => {
     }
 });
 
-app.post('/searchUsers',validateToken,async (req,res) => {
+app.get('/searchUsers',validateToken,async (req,res) => {
     try {
     const search = req.query.q || '';
+    console.log(search);
+    
     const page = +req.query.page;
     const limit = +req.query.limit;
     const offset = (page - 1) * limit;
@@ -181,8 +188,7 @@ app.post('/searchUsers',validateToken,async (req,res) => {
         where username LIKE ?
         and  id != ? limit ? offset ?
     `;
-    
-    
+
     const [getUsers] = await pool.query(query,[`${search}%`,req.userId,limit,offset]);
     return res.status(200).json({users:getUsers});
     } catch (error) {
@@ -191,8 +197,10 @@ app.post('/searchUsers',validateToken,async (req,res) => {
 });
 
 
-app.post("/getMessages/:chatId",validateToken,async (req,res,next) => {
+app.get("/getMessages/:chatId",validateToken,async (req,res,next) => {
     try {
+        console.log("ds");
+        
         const chatId = +req.params.chatId;
         const page = +req.query.page;
         const limit = +req.query.limit;
@@ -207,9 +215,9 @@ app.post("/getMessages/:chatId",validateToken,async (req,res,next) => {
         if (!isUserChatParticipant[0]) {
             return res.status(403).json({ message: "You are not a participant of this chat" });
         }
-        query = `select messages.id,sender_id,message,chatId,username,email,created_at,updated_at from messages inner join users on users.id = messages.sender_id
+        query = `select messages.id,sender_id,message,chatId,username as sender_username,created_at,updated_at from messages inner join users on users.id = messages.sender_id
                     where sender_id = ?
-                    and chatId = ? order by created_at
+                    and chatId = ? order by created_at DESC
                      limit ? offset ?
         `
         const [getMessages] = await pool.query(query,[req.userId,chatId,limit,offset]);
@@ -218,6 +226,8 @@ app.post("/getMessages/:chatId",validateToken,async (req,res,next) => {
         return res.status(500).json({ message: "Server error", error: error });
     }
 });
+
+
 
 app.listen(3000);
 
