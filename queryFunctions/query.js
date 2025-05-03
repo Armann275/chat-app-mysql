@@ -29,32 +29,65 @@ async function getPrivateChat(chatId) {
    
 }
 
+function messageResponse(messageObj) {
+    const response = {
+        message:{
+            id:messageObj.id,
+            message:messageObj.message,
+            chatId:messageObj.chatId,
+            sender:{
+                senderId:messageObj.sender_id,
+                username:messageObj.username,
+                email:messageObj.email
+            },
+            created_at:messageObj.created_at,
+            updated_at:messageObj.updated_at
+        }   
+    }
+    return response.message
+}
 
-
-async function validateUserInChat(userId,chatId){
+async function validateUserInChat(userId,chatId,isGroup){
         let query = `SELECT * FROM CHATS WHERE ID=?`
-        const [checkChatExists] = await pool.query(query,[chatId]);
+        const params = [chatId];
+        if (isGroup) {
+                query += ` AND isGroup = ?`;
+                params.push(true);
+        }
+        const [checkChatExists] = await pool.query(query,params);
         if (!checkChatExists[0]) {
             throw new ApiError("Chat with this ID doesn't exist", 404);
         }
         
-        query = `SELECT * FROM chat_participants WHERE CHAT_ID=? AND USER_ID=?`
-        const [isUserChatParticipant] = await pool.query(query,[chatId,userId]);
-        if (!isUserChatParticipant[0]) {
-            throw new ApiError("You are not a participant of this chat", 403);
+        
+        const placeholders = userId.map(() => '?').join(',');
+        query = `
+            SELECT user_id as id,role 
+            FROM chat_participants 
+            WHERE chat_id = ? 
+            AND user_id IN (${placeholders})
+        `;
+        const [participants] = await pool.query(query, [chatId, ...userId]);
+        const arr = findMissingIds(userId,participants,false);
+        
+        if (arr.length !== 0) {
+            throw new ApiError(`users with following ids already exists in chat ${arr.join('')}`,404);
         }
+        return {participants:participants}
 }
 
 async function validateUsers(usersArr) {
         const placeholders = usersArr.map(() => '?').join(',');
         let query =  `SELECT ID as id FROM USERS WHERE ID in (${placeholders})`
         const [users] = await pool.query(query,usersArr);
-
+        
+        
         const notFondedIds = findMissingIds(usersArr,users,false);
         
         if (notFondedIds.length !== 0) {
             throw new ApiError(`users with following ids doesnt exits ${notFondedIds.join()}`,404)
         }
+
 }
 
 function findMissingIds(usersArr, users,boolean) {
@@ -85,23 +118,7 @@ async function checkUsersIsNotInChat(chatId,usersArr,userId) {
 }
 
 
-function messageResponse(messageObj) {
-    const response = {
-        message:{
-            id:messageObj.id,
-            message:messageObj.message,
-            chatId:messageObj.chatId,
-            sender:{
-                senderId:messageObj.sender_id,
-                username:messageObj.username,
-                email:messageObj.email
-            },
-            created_at:messageObj.created_at,
-            updated_at:messageObj.updated_at
-        }   
-    }
-    return response.message
-}
+
 
 
 async function getChatParticipants(chatId) {
@@ -115,6 +132,59 @@ async function getChatParticipants(chatId) {
     return getChatParticipants       
 }
 
+
+async function insertUsersToGroupChat(values) {
+    const query = `INSERT INTO CHAT_PARTICIPANTS(USER_ID,CHAT_ID,ROLE,isGroup) VALUES${values}`
+    const [insertedChatParticipants] = await pool.query(query);
+    return
+}
+
+async function getChat(chatId, isGroup) {
+    let query = `SELECT * FROM CHATS WHERE ID = ?`;
+    const params = [chatId];
+
+    if (isGroup) {
+        query += ` AND isGroup = ?`;
+        params.push(true);
+    }
+
+    const [getChat] = await pool.query(query, params);
+    return getChat;
+}
+
+async function searchUsers(search,chatId,userId) {
+    let query = `select id,username,email from users
+                where username LIKE ?
+
+        `;
+    let participantsId = [userId]
+    let participants;
+    if (chatId) {
+        
+        participants = await getChatParticipants(chatId);
+        for(let el of participants){
+            participantsId.push(el.id);
+        }
+        
+    }
+    const placeholders = participantsId.map(() => '?').join(',');
+    console.log(participantsId);
+    query += `AND id NOT IN (${placeholders}) limit ? `
+    const params = [
+        `${search}%`,      
+        ...participantsId,     
+        5               
+    ];
+    const [results] = await pool.query(query, params);
+    console.log(results);
+    
+    return results
+}
+
 module.exports = {getPrivateChat,
     validateUserInChat,
-    validateUsers,messageResponse,getChatParticipants,checkUsersIsNotInChat}
+    validateUsers,messageResponse,
+    getChatParticipants,
+    checkUsersIsNotInChat,insertUsersToGroupChat,getChat,searchUsers}
+
+

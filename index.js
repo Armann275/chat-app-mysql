@@ -11,7 +11,8 @@ const io = socketIo(server);
 const {pool} = require('./connectDb/db')
 const path = require('path');
 const {getPrivateChat,validateUserInChat,checkUsersIsNotInChat,
-    validateUsers,getChatParticipants,messageResponse} = require('./queryFunctions/query');
+    validateUsers,getChatParticipants,
+    messageResponse,getChat,insertUsersToGroupChat,searchUsers} = require('./queryFunctions/query');
 const { ApiError } = require('./exeptions/api-error');
 const {errorHandling} = require('./middlewares/error-handling');
 app.get('/main',(req,res) => {
@@ -146,24 +147,18 @@ app.post('/createGroup',validateToken, async (req,res,next) => {
         const {chatName,usersArr} = req.body;
         await validateUsers(usersArr)
                 
-        query = `INSERT INTO chats(isGroup,groupName,groupAdmin)VALUES (?,?,?)`
-        const [newChat] = await pool.query(query,[true,chatName,req.userId]);
+        query = `INSERT INTO chats(isGroup,groupName)VALUES (?,?)`
+        const [newChat] = await pool.query(query,[true,chatName]);
 
-        const values = usersArr.map(userId => `(${userId},${newChat.insertId},"member",${true})`).join(',');
-        query = `INSERT INTO CHAT_PARTICIPANTS(USER_ID,CHAT_ID,ROLE,isGroup) VALUES${values}`
-
-        const [insertedChatParticipants] = await pool.query(query);
-        query = `INSERT INTO CHAT_PARTICIPANTS(USER_ID,CHAT_ID,ROLE,isGroup) VALUES(?,?,?,?)`
-
-        const [insertAdmin] = await pool.query(query,[req.userId,newChat.insertId,"admin",true]);
-
-        query = `SELECT * FROM CHATS WHERE ID=?`
-        const [getChat] = await pool.query(query,[newChat.insertId]);
-        console.log(getChat);
+        let values = usersArr.map(userId => `(${userId},${newChat.insertId},"member",${true})`);
+        values += `,(${req.userId},${newChat.insertId},"admin",${true})`
         
+        await insertUsersToGroupChat(values);
+
+        const chat = await getChat(newChat.insertId);
         const getChatParticipant = await getChatParticipants(newChat.insertId);
         
-        return res.status(200).json({chat:getChat[0],chatParticipants:getChatParticipant,currentUserId:req.userId});
+        return res.status(200).json({chat:chat[0],chatParticipants:getChatParticipant,currentUserId:req.userId});
     } catch (error) {
         next(error)
     }
@@ -175,7 +170,7 @@ app.post("/sendMessage/:chatId",validateToken,async (req,res,next) => {
         const chatId = +req.params.chatId;
         const {message} = req.body;
         
-        await validateUserInChat(req.userId,chatId);
+        await validateUserInChat([req.userId],chatId);
 
         query = `INSERT INTO MESSAGES(sender_id,message,chatId)VALUES(?,?,?)`;
         
@@ -199,21 +194,16 @@ app.post("/sendMessage/:chatId",validateToken,async (req,res,next) => {
     }
 });
 
-app.get('/searchUsers',validateToken,async (req,res) => {
+app.get('/searchUsers',validateToken,async (req,res,next) => {
     try {
     const search = req.query.q || '';
-    console.log(search);
+    const chatId = req.query.chatId;
+    console.log(search,chatId);
     
-    
-    let query = `select id,username,email from users
-        where username LIKE ?
-        and  id != ? limit ? 
-    `;
-
-    const [getUsers] = await pool.query(query,[`${search}%`,req.userId,5]);
+    const getUsers = await searchUsers(search,chatId,req.userId);
     return res.status(200).json({users:getUsers});
     } catch (error) {
-        return res.status(500).json({ message: "Server error", error: error });
+       next(error);
     }
 });
 
@@ -221,10 +211,9 @@ app.get('/searchUsers',validateToken,async (req,res) => {
 app.get("/getMessages/:chatId",validateToken,async (req,res,next) => {
     try {
         
-        
         const chatId = +req.params.chatId;
         
-        await validateUserInChat(req.userId,chatId)
+        await validateUserInChat([req.userId],chatId)
         
         query = `select messages.id as id,sender_id,message,chatId, username ,email, messages.created_at,messages.updated_at from messages inner join users on users.id = messages.sender_id
                     where 
@@ -276,24 +265,28 @@ app.get("/getAllChats",validateToken,async (req,res,next) => {
     chats.id, 
     chats.isGroup, 
     chats.groupName, 
-    chats.groupAdmin, 
     chats.created_at, 
     chats.updated_at, 
+    
     JSON_OBJECT(
         'id', messages.id,
         'sender_id', messages.sender_id,
         'message', messages.message,
         'chatId', messages.chatId,
+        
         'sender', JSON_OBJECT(
             'id', users.id,
             'username', users.username,
             'email', users.email
         )
+        
     ) AS lastMessage
 FROM chats 
 LEFT JOIN messages ON messages.id = chats.lastMessage 
 LEFT JOIN users ON users.id = messages.sender_id
-WHERE chats.id IN (${placeholders})`
+WHERE chats.id IN (${placeholders})
+ORDER BY messages.created_at DESC  
+`
         
         const [getAllChats] = await pool.query(query,chatIdArr);
         return res.status(200).json({chats:getAllChats,chatParticipants:chatParticipants,currentUserId:req.userId});
@@ -318,17 +311,112 @@ app.post("/groupAdd",validateToken,async (req,res,next) => {
         if (!chat[0]) {
             throw new ApiError(`there is no group chat with this id:${chatId}`,404);
         }
-        return res.json({});
+
+        const values = usersArr.map(userId => `(${userId},${chatId},"member",${true})`);
+        await insertUsersToGroupChat(values);
+
+        const participants = await getChatParticipants(chatId);
+        
+        return res.status(200).json({chat:chat, participants:participants});
     } catch (error) {
         next(error);
     }
 });
 
-app.use(errorHandling);
 
+app.delete("/leaveGroup",validateToken,async (req,res,next) => {
+    try {
+        
+        const {chatId} = req.body;
+        
+        await validateUserInChat([req.userId],chatId,true);
+        const participants = await getChatParticipants(chatId);
+        if (participants.length === 1) {
+                await pool.query(
+                        `UPDATE chats SET is_active = FALSE 
+                         WHERE id = ?`,
+                         [chatId]
+                );
+        }
+        const deleteParticipantQuery = `DELETE FROM chat_participants WHERE chat_id=? AND user_id=?`;
+        await pool.query(deleteParticipantQuery,[chatId,req.userId]);
+        
+        return res.status(200).json({message:"you leaved this chat susscesfuly"});
+    } catch (error) {
+        next(error);
+    }
+});
+
+app.delete('/deleteUserFromChat',validateToken,async (req,res,next) => {
+    try {
+        const {userId,chatId} = req.body;
+        await validateUsers([userId]);
+        const {participants} = await validateUserInChat([userId,req.userId],chatId,true);
+        console.log(participants);
+        const admin = participants.find((element) => element.role === "admin");
+        console.log(admin);
+        
+        if (!admin) {
+            throw new ApiError('you are not a admin you dont have the acsess',403)
+        }
+
+        const deleteParticipantQuery = `DELETE FROM chat_participants WHERE chat_id = ? AND user_id=?`;
+        await pool.query(deleteParticipantQuery,[chatId,userId]);
+        return res.status(200).json({message:"user Deleted succesfuly"})
+    } catch (error) {
+        next(error);
+    }
+});
+
+
+app.post('/becomeGroupAdmin',validateToken,async (req,res,next) => {
+    try {
+        const {chatId} = req.body;
+        const {participants} = await validateUserInChat([req.userId],chatId,true);
+        const admin = participants.find((element) => element.role === "admin");
+        if (admin) {
+            throw new ApiError(`there is already admin in this group`,403);
+        }
+        const becomeGroupAdminQuery = `UPDATE chat_participants
+                                    SET role=?
+                                    WHERE user_id=? and chat_id=?
+                                    `
+        await pool.query(becomeGroupAdminQuery,['admin',req.userId,chatId]);
+
+        return res.status(200).json({message:"you becomed admin"})                           
+    } catch (error) {
+        next(error);
+    }
+});
+
+
+app.post("/renameGroup",validateToken,async (req,res,next) => {
+    try {   
+        const {newGroupName,chatId} = req.body;
+        await validateUserInChat([req.userId],chatId,true);
+
+        const updateGroupNameQuery = `UPDATE chats
+                                            SET groupName=?
+                                    WHERE id=?`;    
+        await pool.query(updateGroupNameQuery,[newGroupName,chatId]);
+        const chat = await getChat(chatId,true);
+        
+        return res.status(200).json({chat:chat});
+    } catch (error) {
+        next(error)
+    }
+});
+
+app.use(errorHandling);
 
 io.on('connection', (socket) => {
     console.log('A user connected');
+    
+    socket.on("join user",(userId) => {
+        socket.join(`user_${userId}`);
+        console.log("krocodil");
+        
+    });
     
     socket.on("join chat",(chatId) => {
         socket.join(chatId);
@@ -345,8 +433,17 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
       console.log('A user disconnected');
     });
+
+    socket.on('leaveGroup',(chatId) => {
+        socket.leave(chatId);
+    });
+
+    socket.on('deleteParticipant',(userId,chatId) => {
+        io.to(`user_${userId}`).emit('deleteParticipant',chatId);
+    });
 });
 
 
 server.listen(3000);
-module.exports = {pool}
+
+// module.exports = {pool}
