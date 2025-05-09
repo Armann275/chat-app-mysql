@@ -3,70 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat App</title>
+    <title>Viber-Style Chat</title>
     <style>
-        /* General Reset */
+        /* Viber-inspired CSS */
+        :root {
+            --viber-primary: #7360F2;
+            --viber-secondary: #8B7AF6;
+            --viber-dark: #3D3D3D;
+            --viber-light: #F5F5F5;
+            --viber-text: #333333;
+            --viber-time: #999999;
+            --viber-received: #FFFFFF;
+            --viber-sent: #E1F7CB;
+            --viber-unread: #7360F2;
+            --viber-system: #e6e6e6;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         }
 
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f7fa;
-            display: flex;
+            background-color: var(--viber-light);
             height: 100vh;
-        }
-
-        .container {
             display: flex;
-            width: 100%;
+            color: var(--viber-text);
         }
 
-        /* Left Side - Chat List */
+        /* Chat List Sidebar */
         .chat-list-container {
-            width: 300px;
-            background-color: #ffffff;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            width: 350px;
+            background-color: white;
+            border-right: 1px solid #e0e0e0;
             height: 100vh;
             overflow-y: auto;
         }
 
-        .chat-list {
-            list-style-type: none;
-            padding: 10px;
-        }
-
-        .chat-item {
-            padding: 10px;
-            border-bottom: 1px solid #e0e0e0;
-            cursor: pointer;
+        .app-header {
+            background-color: var(--viber-primary);
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            position: relative;
-            transition: background-color 0.3s ease;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-bar {
+            padding: 10px;
+            background-color: #f8f8f8;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 8px 15px;
+            border-radius: 18px;
+            border: none;
+            background-color: white;
+            font-size: 14px;
+        }
+
+        .chat-list {
+            list-style-type: none;
+        }
+
+        .chat-item {
+            display: flex;
+            padding: 12px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background-color 0.2s;
         }
 
         .chat-item:hover {
+            background-color: #f9f9f9;
+        }
+
+        .chat-item.active {
             background-color: #f0f0f0;
         }
 
-        .chat-item:last-child {
-            border-bottom: none;
+        .chat-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: var(--viber-secondary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 12px;
+            font-size: 18px;
         }
 
-        .chat-item span {
-            font-size: 0.9rem;
-            color: gray;
+        .chat-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .chat-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .chat-last-message {
+            font-size: 14px;
+            color: #777;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .chat-time {
+            font-size: 12px;
+            color: var(--viber-time);
         }
 
         .unread-count {
-            position: absolute;
-            right: 10px;
-            top: 10px;
-            background-color: #ff4444;
+            background-color: var(--viber-unread);
             color: white;
             border-radius: 50%;
             width: 20px;
@@ -74,300 +145,287 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.7rem;
+            font-size: 11px;
             font-weight: bold;
+            margin-left: 5px;
         }
 
-        /* Right Side - Chat Window */
+        /* Chat Window */
         .chat-window {
-            flex-grow: 1;
+            flex: 1;
             display: none;
-            background-color: #fff;
-            padding: 20px;
-            border-left: 1px solid #e0e0e0;
-            height: 100vh;
-            display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            height: 100vh;
+            background-color: #e5ddd5;
+            background-image: url('https://web.whatsapp.com/img/bg-chat-tile-light_a4be512e7195b6b733d9110b408f075d.png');
         }
 
         .chat-header {
+            background-color: #ededed;
+            padding: 10px 15px;
             display: flex;
-            justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid #e0e0e0;
-            padding-bottom: 10px;
+        }
+
+        .chat-header-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--viber-secondary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 12px;
+        }
+
+        .chat-header-info {
+            flex: 1;
         }
 
         .chat-title {
-            font-size: 1.5rem;
-            font-weight: bold;
+            font-weight: 600;
+        }
+
+        .chat-status {
+            font-size: 12px;
+            color: var(--viber-time);
         }
 
         .chat-actions {
             display: flex;
-            gap: 10px;
+            gap: 15px;
         }
 
-        .users-btn, .add-users-btn, .leave-group-btn, .become-admin-btn, .rename-group-btn {
-            background-color: #007bff;
-            color: white;
-            padding: 5px 10px;
+        .chat-action-btn {
+            background: none;
             border: none;
+            color: var(--viber-dark);
             cursor: pointer;
-            display: none;
-        }
-
-        .users-btn:hover, .add-users-btn:hover, .leave-group-btn:hover, .become-admin-btn:hover, .rename-group-btn:hover {
-            background-color: #0056b3;
-        }
-
-        .message-input {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding-top: 20px;
-            border-top: 1px solid #e0e0e0;
-        }
-
-        .message-input input {
-            width: 80%;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-        }
-
-        .send-btn {
-            padding: 10px 15px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        .send-btn:hover {
-            background-color: #0056b3;
+            font-size: 18px;
         }
 
         .chat-messages {
-            flex-grow: 1;
+            flex: 1;
+            padding: 20px;
             overflow-y: auto;
-            padding-bottom: 20px;
+            display: flex;
+            flex-direction: column;
         }
 
         .message {
-            margin-bottom: 15px;
-            padding: 10px;
-            border-radius: 8px;
             max-width: 70%;
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            position: relative;
             word-wrap: break-word;
         }
 
-        .sent {
-            background-color: #e0f7fa;
-            align-self: flex-end;
-        }
-
         .received {
-            background-color: #f1f1f1;
+            background-color: var(--viber-received);
             align-self: flex-start;
+            border-top-left-radius: 0;
         }
 
-        .message-time {
-            font-size: 0.8rem;
-            color: gray;
-            text-align: right;
-            margin-top: 5px;
+        .sent {
+            background-color: var(--viber-sent);
+            align-self: flex-end;
+            border-top-right-radius: 0;
+        }
+
+        .system {
+            background-color: var(--viber-system);
+            align-self: center;
+            text-align: center;
+            font-size: 13px;
+            color: var(--viber-time);
+            border-radius: 15px;
+            padding: 6px 12px;
+            margin: 5px auto;
+            max-width: 80%;
         }
 
         .message-sender {
-            font-size: 0.8rem;
-            color: gray;
-            margin-bottom: 5px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--viber-primary);
+            margin-bottom: 3px;
         }
 
-        /* User List Popup */
-        .user-list-popup {
+        .message-time {
+            font-size: 11px;
+            color: var(--viber-time);
+            text-align: right;
+            margin-top: 3px;
+        }
+
+        .system .message-time {
             display: none;
-            position: absolute;
-            top: 50px;
-            right: 20px;
-            background-color: white;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-            padding: 15px;
-            max-width: 200px;
-            width: 200px;
         }
 
-        .popup-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .popup-title {
-            font-weight: bold;
-        }
-
-        .close-btn {
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            cursor: pointer;
-            color: #666;
-        }
-
-        .user-list {
-            list-style-type: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .user-item {
-            padding: 5px 10px;
-            cursor: pointer;
-            font-size: 1rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .user-item:hover {
+        .message-input-container {
             background-color: #f0f0f0;
+            padding: 10px;
+            display: flex;
+            align-items: center;
         }
 
-        .user-item span {
-            font-size: 0.8rem;
-            color: gray;
+        .message-input {
+            flex: 1;
+            padding: 10px 15px;
+            border-radius: 20px;
+            border: none;
+            margin: 0 10px;
+            font-size: 14px;
         }
 
-        .delete-user-btn, .become-admin-btn {
-            background-color: #ff4444;
+        .send-btn {
+            background-color: var(--viber-primary);
             color: white;
             border: none;
-            border-radius: 3px;
-            padding: 2px 5px;
-            font-size: 0.7rem;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
-            display: none;
         }
 
-        .delete-user-btn:hover {
-            background-color: #cc0000;
-        }
-
-        .become-admin-btn {
-            background-color: #28a745;
-        }
-
-        .become-admin-btn:hover {
-            background-color: #218838;
-        }
-
-        /* New Group Chat Popup */
-        .new-group-popup, .add-users-popup, .leave-group-popup, .rename-group-popup {
+        /* Popups */
+        .popup {
             display: none;
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             background-color: white;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             border-radius: 8px;
-            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 100;
             width: 400px;
+            max-width: 90%;
+        }
+
+        .popup-header {
+            padding: 15px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .popup-title {
+            font-weight: 600;
+            font-size: 18px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
         }
 
         .popup-content {
+            padding: 15px;
+        }
+
+        .popup-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .popup-btn {
+            background-color: var(--viber-primary);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
             margin-top: 15px;
         }
 
-        .new-group-popup input,
-        .new-group-popup button,
-        .add-users-popup input,
-        .add-users-popup button,
-        .leave-group-popup button,
-        .rename-group-popup input,
-        .rename-group-popup button {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
+        .cancel-btn {
+            background-color: #ddd;
+            color: #333;
         }
 
-        .new-group-popup button,
-        .add-users-popup button,
-        .leave-group-popup button,
-        .rename-group-popup button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
+        /* User Search Popup */
+        .user-search-popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+            width: 400px;
+            max-width: 90%;
         }
 
-        .new-group-popup button:hover,
-        .add-users-popup button:hover,
-        .leave-group-popup button:hover,
-        .rename-group-popup button:hover {
-            background-color: #0056b3;
+        .user-search-results {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
         }
 
-        .leave-group-popup .confirmation-text,
-        .rename-group-popup .confirmation-text {
-            text-align: center;
-            margin-bottom: 20px;
-            font-size: 1.1rem;
-        }
-
-        .leave-group-popup .action-buttons,
-        .rename-group-popup .action-buttons {
+        .user-result-item {
             display: flex;
-            gap: 10px;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
         }
 
-        .leave-group-popup .action-buttons button,
-        .rename-group-popup .action-buttons button {
+        .user-result-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--viber-secondary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .user-result-info {
             flex: 1;
         }
 
-        .leave-group-popup .action-buttons .cancel-btn,
-        .rename-group-popup .action-buttons .cancel-btn {
-            background-color: #6c757d;
+        .user-result-name {
+            font-weight: 600;
         }
 
-        .leave-group-popup .action-buttons .cancel-btn:hover,
-        .rename-group-popup .action-buttons .cancel-btn:hover {
-            background-color: #5a6268;
+        .user-result-email {
+            font-size: 12px;
+            color: #777;
         }
 
-        /* New Group Button */
-        #newGroupBtn {
-            background: linear-gradient(135deg, #007bff, #00aaff);
+        .send-message-btn {
+            background-color: var(--viber-primary);
             color: white;
-            padding: 12px 20px;
-            font-size: 1.1rem;
-            font-weight: bold;
             border: none;
-            border-radius: 30px;
+            border-radius: 4px;
+            padding: 6px 12px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0, 123, 255, 0.2);
-            margin: 10px;
-            width: calc(100% - 20px);
-        }
-
-        #newGroupBtn:hover {
-            background: linear-gradient(135deg, #0056b3, #008cba);
-            transform: translateY(-3px);
-            box-shadow: 0 6px 10px rgba(0, 123, 255, 0.3);
-        }
-
-        #newGroupBtn:active {
-            transform: translateY(1px);
-            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.1);
+            font-size: 14px;
         }
 
         /* Notification */
@@ -375,7 +433,7 @@
             position: fixed;
             bottom: 20px;
             right: 20px;
-            background-color: #007bff;
+            background-color: var(--viber-primary);
             color: white;
             padding: 10px 20px;
             border-radius: 5px;
@@ -383,100 +441,124 @@
             display: none;
             z-index: 1000;
         }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Left side - Chat List -->
-        <div class="chat-list-container">
-            <button id="newGroupBtn">Create New Group</button>
-            <ul class="chat-list" id="chatList"></ul>
+    <div class="chat-list-container">
+        <div class="app-header">
+            <span>Messages</span>
+            <div class="header-actions">
+                <button class="chat-action-btn" id="searchUserBtn">🔍</button>
+                <button class="chat-action-btn" id="newGroupBtn">✏️</button>
+            </div>
         </div>
+        <div class="search-bar">
+            <input type="text" placeholder="Search...">
+        </div>
+        <ul class="chat-list" id="chatList"></ul>
+    </div>
 
-        <!-- Right side - Chat Window -->
-        <div class="chat-window" id="chatWindow">
-            <div class="chat-header">
-                <div id="chatTitle" class="chat-title"></div>
-                <div class="chat-actions">
-                    <button class="users-btn" id="viewUsersBtn">View Users</button>
-                    <button class="add-users-btn" id="addUsersBtn">Add Users</button>
-                    <button class="leave-group-btn" id="leaveGroupBtn">Leave Group</button>
-                    <button class="become-admin-btn" id="becomeAdminBtn">Become Admin</button>
-                    <button class="rename-group-btn" id="renameGroupBtn">Rename Group</button>
-                </div>
+    <div class="chat-window" id="chatWindow">
+        <div class="chat-header">
+            <div class="chat-header-avatar" id="chatAvatar">G</div>
+            <div class="chat-header-info">
+                <div class="chat-title" id="chatTitle">Group Name</div>
+                <div class="chat-status" id="chatStatus">online</div>
             </div>
-            <div id="chatMessages" class="chat-messages"></div>
-
-            <!-- Message Input -->
-            <div class="message-input">
-                <input type="text" id="chatInput" placeholder="Write a message..." />
-                <button class="send-btn" id="sendMessage">Send</button>
+            <div class="chat-actions">
+                <button class="chat-action-btn" id="viewUsersBtn">👥</button>
+                <button class="chat-action-btn" id="addUsersBtn">➕</button>
+                <button class="chat-action-btn" id="leaveGroupBtn">🚪</button>
+                <button class="chat-action-btn" id="renameGroupBtn">✏️</button>
             </div>
-
-            <div class="user-list-popup" id="userListPopup">
-                <div class="popup-header">
-                    <div class="popup-title">Group Members</div>
-                    <button class="close-btn" id="closeUserListBtn">&times;</button>
-                </div>
-                <ul id="userList" class="user-list"></ul>
-            </div>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="message-input-container">
+            <button class="chat-action-btn">😊</button>
+            <input type="text" class="message-input" id="chatInput" placeholder="Type a message...">
+            <button class="send-btn" id="sendMessage">➤</button>
         </div>
     </div>
 
-    <!-- New Group Chat Popup -->
-    <div class="new-group-popup" id="newGroupPopup">
+    <!-- User Search Popup -->
+    <div class="user-search-popup" id="userSearchPopup">
         <div class="popup-header">
-            <div class="popup-title">Create New Group</div>
+            <div class="popup-title">Search Users</div>
+            <button class="close-btn" id="closeUserSearchBtn">&times;</button>
+        </div>
+        <div class="popup-content">
+            <input type="text" class="popup-input" id="userSearchInput" placeholder="Type to search users...">
+            <div class="user-search-results" id="userSearchResults"></div>
+        </div>
+    </div>
+
+    <!-- User List Popup -->
+    <div class="popup" id="userListPopup">
+        <div class="popup-header">
+            <div class="popup-title">Group Members</div>
+            <button class="close-btn" id="closeUserListBtn">&times;</button>
+        </div>
+        <div class="popup-content">
+            <ul id="userList" class="user-list"></ul>
+        </div>
+    </div>
+
+    <!-- New Group Popup -->
+    <div class="popup" id="newGroupPopup">
+        <div class="popup-header">
+            <div class="popup-title">New Group</div>
             <button class="close-btn" id="closeNewGroupBtn">&times;</button>
         </div>
         <div class="popup-content">
-            <input type="text" id="groupName" placeholder="Enter Group Name" />
-            <input type="text" id="searchUsers" placeholder="Search Users" />
+            <input type="text" class="popup-input" id="groupName" placeholder="Group name">
+            <input type="text" class="popup-input" id="searchUsers" placeholder="Search users">
             <ul id="searchResults" class="user-list"></ul>
-            <button id="createGroupBtn">Create Group</button>
+            <button class="popup-btn" id="createGroupBtn">Create Group</button>
         </div>
     </div>
 
     <!-- Add Users Popup -->
-    <div class="add-users-popup" id="addUsersPopup">
+    <div class="popup" id="addUsersPopup">
         <div class="popup-header">
-            <div class="popup-title">Add Users to Group</div>
+            <div class="popup-title">Add Users</div>
             <button class="close-btn" id="closeAddUsersBtn">&times;</button>
         </div>
         <div class="popup-content">
-            <input type="text" id="searchNewUsers" placeholder="Search Users to Add" />
+            <input type="text" class="popup-input" id="searchNewUsers" placeholder="Search users">
             <ul id="newUserResults" class="user-list"></ul>
-            <button id="addSelectedUsersBtn">Add Selected Users</button>
-        </div>
-    </div>
-
-    <!-- Leave Group Confirmation Popup -->
-    <div class="leave-group-popup" id="leaveGroupPopup">
-        <div class="popup-header">
-            <div class="popup-title">Leave Group</div>
-            <button class="close-btn" id="closeLeaveGroupBtn">&times;</button>
-        </div>
-        <div class="popup-content">
-            <div class="confirmation-text">Are you sure you want to leave this group?</div>
-            <div class="action-buttons">
-                <button class="cancel-btn" id="cancelLeaveGroupBtn">No</button>
-                <button id="confirmLeaveGroupBtn">Yes</button>
-            </div>
+            <button class="popup-btn" id="addSelectedUsersBtn">Add Users</button>
         </div>
     </div>
 
     <!-- Rename Group Popup -->
-    <div class="rename-group-popup" id="renameGroupPopup">
+    <div class="popup" id="renameGroupPopup">
         <div class="popup-header">
             <div class="popup-title">Rename Group</div>
             <button class="close-btn" id="closeRenameGroupBtn">&times;</button>
         </div>
         <div class="popup-content">
-            <div class="confirmation-text">Enter new name for this group:</div>
-            <input type="text" id="newGroupName" placeholder="New Group Name" />
+            <input type="text" class="popup-input" id="newGroupName" placeholder="New group name">
             <div class="action-buttons">
-                <button class="cancel-btn" id="cancelRenameGroupBtn">Cancel</button>
-                <button id="confirmRenameGroupBtn">Rename</button>
+                <button class="popup-btn cancel-btn" id="cancelRenameGroupBtn">Cancel</button>
+                <button class="popup-btn" id="confirmRenameGroupBtn">Rename</button>
             </div>
         </div>
     </div>
@@ -502,10 +584,22 @@
         let selectedNewUsers = [];
         let currentChatParticipants = [];
         let currentChat = null;
-        let unreadCounts = {}; // Track unread messages per chat
-        let allChats = []; // Store all chats for reordering
-        let currentUserRole = null; // Track current user's role in the chat
-        let hasAdmin = false; // Track if chat has an admin
+        let unreadCounts = {};
+        let allChats = [];
+        let currentUserRole = null;
+        let hasAdmin = false;
+
+        // Function to generate avatar color based on name
+        function getAvatarColor(name) {
+            const colors = ['#7360F2', '#8B7AF6', '#6A5ACD', '#9370DB', '#7B68EE'];
+            const index = name.charCodeAt(0) % colors.length;
+            return colors[index];
+        }
+
+        // Function to get initials from name
+        function getInitials(name) {
+            return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+        }
 
         // Function to fetch chats
         async function fetchChats() {
@@ -520,7 +614,7 @@
                 const data = await response.json();
                 const { chats, chatParticipants, currentUserId } = data;
                 
-                allChats = chats; // Store all chats
+                allChats = chats;
                 const chatList = document.getElementById('chatList');
                 chatList.innerHTML = '';
 
@@ -542,28 +636,55 @@
                     if (!isGroupChat) {
                         const participants = chatParticipants.filter(p => p.chat_id === chat.id && p.user_id !== currentUserId);
                         chatName = participants[0].username;
-                        lastMessage = chat.lastMessage?.message && chat.lastMessage?.sender?.username ? `${chat.lastMessage.sender.username}: ${chat.lastMessage.message}` : '';
+                        lastMessage = chat.lastMessage?.message && chat.lastMessage?.sender?.username ? 
+                            formatLastMessage(chat.lastMessage) : '';
                     } else {
                         chatName = chat.groupName;
-                        lastMessage = chat.lastMessage?.message && chat.lastMessage?.sender?.username ? `${chat.lastMessage.sender.username}: ${chat.lastMessage.message}` : '';
+                        lastMessage = chat.lastMessage?.message ? 
+                            formatLastMessage(chat.lastMessage) : '';
                     }
 
                     const chatItem = document.createElement('li');
                     chatItem.classList.add('chat-item');
                     chatItem.dataset.chatId = chat.id;
                     
-                    // Create the main content div
-                    const contentDiv = document.createElement('div');
-                    contentDiv.textContent = `${chatName} - ${lastMessage || 'No messages yet'}`;
-                    chatItem.appendChild(contentDiv);
+                    // Create avatar
+                    const avatar = document.createElement('div');
+                    avatar.classList.add('chat-avatar');
+                    avatar.style.backgroundColor = getAvatarColor(chatName);
+                    avatar.textContent = getInitials(chatName);
+                    chatItem.appendChild(avatar);
+                    
+                    // Create chat info
+                    const chatInfo = document.createElement('div');
+                    chatInfo.classList.add('chat-info');
+                    
+                    const nameRow = document.createElement('div');
+                    nameRow.classList.add('chat-name');
+                    nameRow.textContent = chatName;
+                    
+                    const timeSpan = document.createElement('span');
+                    timeSpan.classList.add('chat-time');
+                    timeSpan.textContent = chat.lastMessage ? 
+                        formatTime(chat.lastMessage.created_at) : '';
+                    nameRow.appendChild(timeSpan);
+                    
+                    chatInfo.appendChild(nameRow);
+                    
+                    const messageRow = document.createElement('div');
+                    messageRow.classList.add('chat-last-message');
+                    messageRow.textContent = lastMessage || 'No messages yet';
                     
                     // Add unread count badge if there are unread messages
                     if (unreadCounts[chat.id] && unreadCounts[chat.id] > 0) {
-                        const unreadBadge = document.createElement('div');
+                        const unreadBadge = document.createElement('span');
                         unreadBadge.classList.add('unread-count');
                         unreadBadge.textContent = unreadCounts[chat.id];
-                        chatItem.appendChild(unreadBadge);
+                        messageRow.appendChild(unreadBadge);
                     }
+                    
+                    chatInfo.appendChild(messageRow);
+                    chatItem.appendChild(chatInfo);
                     
                     chatItem.onclick = () => {
                         // Clear unread count when opening chat
@@ -584,18 +705,39 @@
             }
         }
 
+        // Format last message for display in chat list
+        function formatLastMessage(message) {
+            if (message.isSystem) {
+                return message.message;
+            }
+            return message.sender?.username ? `${message.sender.username}: ${message.message}` : message.message;
+        }
+
+        // Format time for display
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            
+            if (date.toDateString() === now.toDateString()) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else if (date.getFullYear() === now.getFullYear()) {
+                return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+            } else {
+                return date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+            }
+        }
+
         // Open the chat window and fetch messages
         async function openChatWindow(chat, chatParticipants, currentUserId) {
             const chatWindow = document.getElementById('chatWindow');
             const chatTitle = document.getElementById('chatTitle');
+            const chatAvatar = document.getElementById('chatAvatar');
             const chatMessages = document.getElementById('chatMessages');
             const chatInput = document.getElementById('chatInput');
             const usersBtn = document.getElementById('viewUsersBtn');
             const addUsersBtn = document.getElementById('addUsersBtn');
             const leaveGroupBtn = document.getElementById('leaveGroupBtn');
-            const becomeAdminBtn = document.getElementById('becomeAdminBtn');
             const renameGroupBtn = document.getElementById('renameGroupBtn');
-            const userListPopup = document.getElementById('userListPopup');
 
             currentChatId = chat.id;
             currentChat = chat;
@@ -610,20 +752,20 @@
 
             if (chat.isGroup) {
                 chatTitle.textContent = chat.groupName;
+                chatAvatar.textContent = getInitials(chat.groupName);
+                chatAvatar.style.backgroundColor = getAvatarColor(chat.groupName);
                 usersBtn.style.display = 'block';
                 addUsersBtn.style.display = 'block';
                 leaveGroupBtn.style.display = 'block';
                 renameGroupBtn.style.display = currentUserRole === 'admin' ? 'block' : 'none';
-                
-                // Show become admin button only if there's no admin and current user isn't already admin
-                becomeAdminBtn.style.display = !hasAdmin && currentUserRole !== 'admin' ? 'block' : 'none';
             } else {
                 const oppositeUser = chatParticipants.find(p => p.chat_id === chat.id && p.user_id !== currentUserId);
                 chatTitle.textContent = oppositeUser.username;
+                chatAvatar.textContent = getInitials(oppositeUser.username);
+                chatAvatar.style.backgroundColor = getAvatarColor(oppositeUser.username);
                 usersBtn.style.display = 'none';
                 addUsersBtn.style.display = 'none';
                 leaveGroupBtn.style.display = 'none';
-                becomeAdminBtn.style.display = 'none';
                 renameGroupBtn.style.display = 'none';
             }
 
@@ -648,6 +790,22 @@
                 }
             };
 
+            // Also send message on Enter key
+            chatInput.addEventListener('keypress', async (e) => {
+                if (e.key === 'Enter') {
+                    const message = chatInput.value.trim();
+                    if (message) {
+                        const response = await sendMessageToAPI(currentChatId, message);
+                        if (response.success) {
+                            // appendMessage(response.message);
+                        } else {
+                            alert('Failed to send message');
+                        }
+                        chatInput.value = '';
+                    }
+                }
+            });
+
             // Show users in a group chat when clicking "View Users"
             usersBtn.onclick = () => showUsers(chat, currentChatParticipants);
 
@@ -661,50 +819,8 @@
 
             // Leave group button handler
             leaveGroupBtn.onclick = () => {
-                document.getElementById('leaveGroupPopup').style.display = 'block';
-            };
-
-            // Become admin button handler
-            becomeAdminBtn.onclick = async () => {
-                try {
-                    const response = await fetch('/becomeGroupAdmin', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            chatId: currentChatId
-                        })
-                    });
-
-                    const data = await response.json();
-                    if (response.ok) {
-                        // Update current user role and hide the button
-                        currentUserRole = 'admin';
-                        hasAdmin = true;
-                        becomeAdminBtn.style.display = 'none';
-                        renameGroupBtn.style.display = 'block';
-                        
-                        // Update the participants list
-                        const currentUser = currentChatParticipants.find(p => p.user_id === userId);
-                        if (currentUser) {
-                            currentUser.role = 'admin';
-                        }
-                        
-                        // Show success notification
-                        showNotification(data.message || 'You are now the admin of this group');
-                        
-                        // Refresh the user list if it's open
-                        if (document.getElementById('userListPopup').style.display === 'block') {
-                            showUsers(chat, currentChatParticipants);
-                        }
-                    } else {
-                        throw new Error(data.message || 'Failed to become admin');
-                    }
-                } catch (error) {
-                    console.error('Error becoming admin:', error);
-                    alert(error.message);
+                if (confirm('Are you sure you want to leave this group?')) {
+                    leaveGroup();
                 }
             };
 
@@ -736,20 +852,31 @@
         function appendMessage(message) {
             const chatMessages = document.getElementById('chatMessages');
             const messageElement = document.createElement('div');
-            const messageClass = message.sender.senderId === userId ? 'sent' : 'received';
-            messageElement.classList.add('message', messageClass);
             
-            if (message.sender.senderId !== userId) {
-                const senderName = document.createElement('div');
-                senderName.classList.add('message-sender');
-                senderName.textContent = message.sender.username;
-                messageElement.appendChild(senderName);
-            }
+            // Check if this is a system message
+            if (message.isSystem) {
+                messageElement.classList.add('message', 'system');
+                messageElement.innerHTML = `
+                    <div>${message.message}</div>
+                `;
+            } else {
+                // Regular message
+                const messageClass = message.sender.senderId === userId ? 'sent' : 'received';
+                messageElement.classList.add('message', messageClass);
+                
+                if (message.sender.senderId !== userId && currentChat.isGroup) {
+                    const senderName = document.createElement('div');
+                    senderName.classList.add('message-sender');
+                    senderName.textContent = message.sender.username;
+                    messageElement.appendChild(senderName);
+                }
 
-            messageElement.innerHTML += `
-                <div>${message.message}</div>
-                <div class="message-time">${new Date(message.created_at).toLocaleTimeString()}</div>
-            `;
+                messageElement.innerHTML += `
+                    <div>${message.message}</div>
+                    <div class="message-time">${formatTime(message.created_at)}</div>
+                `;
+            }
+            
             chatMessages.appendChild(messageElement);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
@@ -784,24 +911,48 @@
             participants.forEach(p => {
                 const userItem = document.createElement('li');
                 userItem.classList.add('user-item');
+                userItem.style.display = 'flex';
+                userItem.style.alignItems = 'center';
+                userItem.style.padding = '8px 0';
                 
-                // Create user info container
+                // Create avatar
+                const avatar = document.createElement('div');
+                avatar.style.width = '36px';
+                avatar.style.height = '36px';
+                avatar.style.borderRadius = '50%';
+                avatar.style.backgroundColor = getAvatarColor(p.username);
+                avatar.style.color = 'white';
+                avatar.style.display = 'flex';
+                avatar.style.alignItems = 'center';
+                avatar.style.justifyContent = 'center';
+                avatar.style.fontWeight = 'bold';
+                avatar.style.marginRight = '10px';
+                avatar.textContent = getInitials(p.username);
+                
+                // Create user info
                 const userInfo = document.createElement('div');
-                userInfo.innerHTML = `${p.username} <span>${p.role || 'member'}</span>`;
+                userInfo.style.flex = '1';
+                userInfo.innerHTML = `<div>${p.username}</div><div style="font-size:12px;color:#777">${p.role || 'member'}</div>`;
                 
                 // Create delete button (only visible for admin and not for themselves)
                 const deleteBtn = document.createElement('button');
-                deleteBtn.classList.add('delete-user-btn');
-                deleteBtn.textContent = 'Delete';
+                deleteBtn.textContent = 'Remove';
+                deleteBtn.style.background = 'none';
+                deleteBtn.style.border = 'none';
+                deleteBtn.style.color = '#ff4444';
+                deleteBtn.style.cursor = 'pointer';
+                deleteBtn.style.fontSize = '12px';
                 deleteBtn.dataset.userId = p.user_id;
                 
                 // Only show delete button if current user is admin and it's not themselves
                 if (currentUserRole === 'admin' && p.user_id !== userId) {
                     deleteBtn.style.display = 'block';
+                } else {
+                    deleteBtn.style.display = 'none';
                 }
                 
                 deleteBtn.onclick = async (e) => {
-                    e.stopPropagation(); // Prevent triggering the user item click
+                    e.stopPropagation();
                     if (confirm(`Are you sure you want to remove ${p.username} from this group?`)) {
                         try {
                             const response = await fetch('/deleteUserFromChat', {
@@ -826,7 +977,7 @@
                                 );
                                 
                                 // Show success notification
-                                showNotification({ message: `${p.username} has been removed from the group` });
+                                showNotification(`${p.username} has been removed from the group`);
                             } else {
                                 const errorData = await response.json();
                                 throw new Error(errorData.message || 'Failed to delete user');
@@ -838,12 +989,41 @@
                     }
                 };
                 
+                userItem.appendChild(avatar);
                 userItem.appendChild(userInfo);
                 userItem.appendChild(deleteBtn);
                 userList.appendChild(userItem);
             });
 
             userListPopup.style.display = 'block';
+        }
+
+        // Leave group function
+        async function leaveGroup() {
+            try {
+                const response = await fetch('/leaveGroup', {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        chatId: currentChatId
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    showNotification(data.message || 'You have left the group successfully');
+                    document.getElementById('chatWindow').style.display = 'none';
+                    fetchChats(); // Refresh the chat list
+                } else {
+                    throw new Error(data.message || 'Failed to leave group');
+                }
+            } catch (error) {
+                console.error('Error leaving group:', error);
+                alert(error.message);
+            }
         }
 
         // Close buttons functionality
@@ -859,14 +1039,6 @@
             document.getElementById('addUsersPopup').style.display = 'none';
         });
 
-        document.getElementById('closeLeaveGroupBtn').addEventListener('click', () => {
-            document.getElementById('leaveGroupPopup').style.display = 'none';
-        });
-
-        document.getElementById('cancelLeaveGroupBtn').addEventListener('click', () => {
-            document.getElementById('leaveGroupPopup').style.display = 'none';
-        });
-
         document.getElementById('closeRenameGroupBtn').addEventListener('click', () => {
             document.getElementById('renameGroupPopup').style.display = 'none';
         });
@@ -875,11 +1047,113 @@
             document.getElementById('renameGroupPopup').style.display = 'none';
         });
 
-        // Create group button
-        const newGroupBtn = document.getElementById('newGroupBtn');
-        newGroupBtn.addEventListener('click', () => {
-            const newGroupPopup = document.getElementById('newGroupPopup');
-            newGroupPopup.style.display = 'block';
+        // Create group button - FIXED
+        document.getElementById('newGroupBtn').addEventListener('click', () => {
+            document.getElementById('newGroupPopup').style.display = 'block';
+            document.getElementById('groupName').value = '';
+            document.getElementById('searchUsers').value = '';
+            document.getElementById('searchResults').innerHTML = '';
+            selectedUsers = [];
+        });
+
+        // Search users button (new feature)
+        document.getElementById('searchUserBtn').addEventListener('click', () => {
+            document.getElementById('userSearchPopup').style.display = 'block';
+            document.getElementById('userSearchInput').value = '';
+            document.getElementById('userSearchResults').innerHTML = '';
+        });
+
+        // Close user search popup
+        document.getElementById('closeUserSearchBtn').addEventListener('click', () => {
+            document.getElementById('userSearchPopup').style.display = 'none';
+        });
+
+        // Search users while typing (for private chat creation)
+        const userSearchInput = document.getElementById('userSearchInput');
+        userSearchInput.addEventListener('input', async (e) => {
+            const search = e.target.value.trim();
+            if (search) {
+                try {
+                    const response = await fetch(`/searchUsers?q=${search}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    const searchResults = document.getElementById('userSearchResults');
+                    searchResults.innerHTML = '';
+                    
+                    if (data.users && data.users.length > 0) {
+                        data.users.forEach(user => {
+                            const userItem = document.createElement('div');
+                            userItem.classList.add('user-result-item');
+                            
+                            // Create avatar
+                            const avatar = document.createElement('div');
+                            avatar.classList.add('user-result-avatar');
+                            avatar.style.backgroundColor = getAvatarColor(user.username);
+                            avatar.textContent = getInitials(user.username);
+                            
+                            // Create user info
+                            const userInfo = document.createElement('div');
+                            userInfo.classList.add('user-result-info');
+                            userInfo.innerHTML = `
+                                <div class="user-result-name">${user.username}</div>
+                                <div class="user-result-email">${user.email}</div>
+                            `;
+                            
+                            // Create send message button
+                            const sendBtn = document.createElement('button');
+                            sendBtn.classList.add('send-message-btn');
+                            sendBtn.textContent = 'Message';
+                            sendBtn.dataset.userId = user.id;
+                            sendBtn.dataset.username = user.username;
+                            
+                            sendBtn.addEventListener('click', async () => {
+                                try {
+                                    const response = await fetch('/createPrivateChat', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Authorization': `Bearer ${token}`,
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify({
+                                            targetUserId: user.id
+                                        })
+                                    });
+                                    
+                                    const data = await response.json();
+                                    if (response.ok) {
+                                        showNotification(`Chat created with ${user.username}`);
+                                        document.getElementById('userSearchPopup').style.display = 'none';
+                                        fetchChats(); // Refresh the chat list
+                                    } else {
+                                        throw new Error(data.message || 'Failed to create chat');
+                                    }
+                                } catch (error) {
+                                    console.error('Error creating private chat:', error);
+                                    alert(error.message);
+                                }
+                            });
+                            
+                            userItem.appendChild(avatar);
+                            userItem.appendChild(userInfo);
+                            userItem.appendChild(sendBtn);
+                            searchResults.appendChild(userItem);
+                        });
+                    } else {
+                        searchResults.innerHTML = '<div style="padding: 10px; text-align: center; color: #777;">No users found</div>';
+                    }
+                } catch (error) {
+                    console.error('Error searching users:', error);
+                    document.getElementById('userSearchResults').innerHTML = 
+                        '<div style="padding: 10px; text-align: center; color: #ff4444;">Error searching users</div>';
+                }
+            } else {
+                document.getElementById('userSearchResults').innerHTML = '';
+            }
         });
 
         // Search users while typing (for new group creation)
@@ -900,10 +1174,41 @@
                 data.users.forEach(user => {
                     const userItem = document.createElement('li');
                     userItem.classList.add('user-item');
-                    userItem.textContent = user.username;
+                    userItem.style.display = 'flex';
+                    userItem.style.alignItems = 'center';
+                    userItem.style.padding = '8px 0';
+                    userItem.style.cursor = 'pointer';
+                    
+                    // Create avatar
+                    const avatar = document.createElement('div');
+                    avatar.style.width = '36px';
+                    avatar.style.height = '36px';
+                    avatar.style.borderRadius = '50%';
+                    avatar.style.backgroundColor = getAvatarColor(user.username);
+                    avatar.style.color = 'white';
+                    avatar.style.display = 'flex';
+                    avatar.style.alignItems = 'center';
+                    avatar.style.justifyContent = 'center';
+                    avatar.style.fontWeight = 'bold';
+                    avatar.style.marginRight = '10px';
+                    avatar.textContent = getInitials(user.username);
+                    
+                    // Create user info
+                    const userInfo = document.createElement('div');
+                    userInfo.style.flex = '1';
+                    userInfo.textContent = user.username;
+                    
+                    userItem.appendChild(avatar);
+                    userItem.appendChild(userInfo);
+                    
                     userItem.onclick = () => {
-                        selectedUsers.push(user.id);
-                        userItem.style.backgroundColor = '#e0f7fa';
+                        if (selectedUsers.includes(user.id)) {
+                            selectedUsers = selectedUsers.filter(id => id !== user.id);
+                            userItem.style.backgroundColor = '';
+                        } else {
+                            selectedUsers.push(user.id);
+                            userItem.style.backgroundColor = '#f0f0f0';
+                        }
                     };
                     searchResults.appendChild(userItem);
                 });
@@ -928,14 +1233,40 @@
                 data.users.forEach(user => {
                     const userItem = document.createElement('li');
                     userItem.classList.add('user-item');
-                    userItem.textContent = user.username;
+                    userItem.style.display = 'flex';
+                    userItem.style.alignItems = 'center';
+                    userItem.style.padding = '8px 0';
+                    userItem.style.cursor = 'pointer';
+                    
+                    // Create avatar
+                    const avatar = document.createElement('div');
+                    avatar.style.width = '36px';
+                    avatar.style.height = '36px';
+                    avatar.style.borderRadius = '50%';
+                    avatar.style.backgroundColor = getAvatarColor(user.username);
+                    avatar.style.color = 'white';
+                    avatar.style.display = 'flex';
+                    avatar.style.alignItems = 'center';
+                    avatar.style.justifyContent = 'center';
+                    avatar.style.fontWeight = 'bold';
+                    avatar.style.marginRight = '10px';
+                    avatar.textContent = getInitials(user.username);
+                    
+                    // Create user info
+                    const userInfo = document.createElement('div');
+                    userInfo.style.flex = '1';
+                    userInfo.textContent = user.username;
+                    
+                    userItem.appendChild(avatar);
+                    userItem.appendChild(userInfo);
+                    
                     userItem.onclick = () => {
                         if (selectedNewUsers.includes(user.id)) {
                             selectedNewUsers = selectedNewUsers.filter(id => id !== user.id);
                             userItem.style.backgroundColor = '';
                         } else {
                             selectedNewUsers.push(user.id);
-                            userItem.style.backgroundColor = '#e0f7fa';
+                            userItem.style.backgroundColor = '#f0f0f0';
                         }
                     };
                     searchResults.appendChild(userItem);
@@ -966,7 +1297,7 @@
 
                 const data = await response.json();
                 if (data.chat) {
-                    alert('Users added successfully!');
+                    showNotification('Users added successfully!');
                     document.getElementById('addUsersPopup').style.display = 'none';
                     
                     // Update the participants list with the new participants
@@ -992,66 +1323,41 @@
             }
         });
 
-        // Create new group chat
-        const createGroupBtn = document.getElementById('createGroupBtn');
-        createGroupBtn.addEventListener('click', async () => {
+        // Create new group chat - FIXED
+        document.getElementById('createGroupBtn').addEventListener('click', async () => {
             const groupName = document.getElementById('groupName').value.trim();
             if (!groupName || selectedUsers.length < 1) {
                 alert('Please provide a group name and select users.');
                 return;
             }
 
-            const response = await fetch('/createGroup', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    chatName: groupName,
-                    usersArr: selectedUsers
-                })
-            });
-
-            const data = await response.json();
-            if (data.chat) {
-                alert('Group created successfully!');
-                fetchChats();
-                document.getElementById('newGroupPopup').style.display = 'none';
-                selectedUsers = [];
-                document.getElementById('groupName').value = '';
-                document.getElementById('searchResults').innerHTML = '';
-            } else {
-                alert('Failed to create group');
-            }
-        });
-
-        // Leave group confirmation
-        document.getElementById('confirmLeaveGroupBtn').addEventListener('click', async () => {
             try {
-                const response = await fetch('/leaveGroup', {
-                    method: 'DELETE',
+                const response = await fetch('/createGroup', {
+                    method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        chatId: currentChatId
+                        chatName: groupName,
+                        usersArr: selectedUsers
                     })
                 });
 
                 const data = await response.json();
-                if (response.ok) {
-                    alert(data.message || 'You have left the group successfully');
-                    document.getElementById('leaveGroupPopup').style.display = 'none';
-                    document.getElementById('chatWindow').style.display = 'none';
-                    fetchChats(); // Refresh the chat list
+                if (data.chat) {
+                    showNotification('Group created successfully!');
+                    fetchChats();
+                    document.getElementById('newGroupPopup').style.display = 'none';
+                    selectedUsers = [];
+                    document.getElementById('groupName').value = '';
+                    document.getElementById('searchResults').innerHTML = '';
                 } else {
-                    throw new Error(data.message || 'Failed to leave group');
+                    alert('Failed to create group');
                 }
             } catch (error) {
-                console.error('Error leaving group:', error);
-                alert(error.message);
+                console.error('Error creating group:', error);
+                alert('Error creating group');
             }
         });
 
@@ -1080,19 +1386,21 @@
                 if (response.ok) {
                     // Update the chat title in the UI
                     document.getElementById('chatTitle').textContent = newGroupName;
+                    document.getElementById('chatAvatar').textContent = getInitials(newGroupName);
+                    document.getElementById('chatAvatar').style.backgroundColor = getAvatarColor(newGroupName);
                     currentChat.groupName = newGroupName;
                     
                     // Update the chat list item
                     const chatItem = document.querySelector(`.chat-item[data-chat-id="${currentChatId}"]`);
                     if (chatItem) {
-                        const contentDiv = chatItem.querySelector('div:not(.unread-count)');
-                        if (contentDiv) {
-                            const parts = contentDiv.textContent.split(' - ');
-                            if (parts.length > 1) {
-                                contentDiv.textContent = `${newGroupName} - ${parts[1]}`;
-                            } else {
-                                contentDiv.textContent = newGroupName;
-                            }
+                        const nameElement = chatItem.querySelector('.chat-name');
+                        if (nameElement) {
+                            nameElement.firstChild.textContent = newGroupName;
+                        }
+                        const avatar = chatItem.querySelector('.chat-avatar');
+                        if (avatar) {
+                            avatar.textContent = getInitials(newGroupName);
+                            avatar.style.backgroundColor = getAvatarColor(newGroupName);
                         }
                     }
                     
@@ -1134,10 +1442,18 @@
                 chatItem.remove();
                 
                 // Update the content with the new message
-                const contentDiv = chatItem.querySelector('div:not(.unread-count)');
-                if (contentDiv) {
-                    const chatName = contentDiv.textContent.split(' - ')[0];
-                    contentDiv.textContent = `${chatName} - ${message.sender.username}: ${message.message}`;
+                const messageRow = chatItem.querySelector('.chat-last-message');
+                if (messageRow) {
+                    const chatName = chatItem.querySelector('.chat-name').firstChild.textContent;
+                    messageRow.firstChild.textContent = message.isSystem ? 
+                        message.message : 
+                        `${message.sender.username}: ${message.message}`;
+                }
+                
+                // Update the time
+                const timeSpan = chatItem.querySelector('.chat-time');
+                if (timeSpan) {
+                    timeSpan.textContent = formatTime(message.created_at);
                 }
                 
                 // Add the chat item back at the top of the list
@@ -1157,9 +1473,12 @@
             if (chatItem) {
                 let badge = chatItem.querySelector('.unread-count');
                 if (!badge) {
-                    badge = document.createElement('div');
+                    badge = document.createElement('span');
                     badge.classList.add('unread-count');
-                    chatItem.appendChild(badge);
+                    const messageRow = chatItem.querySelector('.chat-last-message');
+                    if (messageRow) {
+                        messageRow.appendChild(badge);
+                    }
                 }
                 badge.textContent = unreadCounts[chatId];
             }
@@ -1171,7 +1490,11 @@
             if (typeof data === 'string') {
                 notification.textContent = data;
             } else {
-                notification.textContent = `New message from ${data.sender.username}: ${data.message.substring(0, 30)}${data.message.length > 30 ? '...' : ''}`;
+                const chat = allChats.find(c => c.id === data.chatId);
+                const chatName = chat?.isGroup ? chat.groupName : 
+                    currentChatParticipants.find(p => p.user_id === data.sender.senderId)?.username || 'Unknown';
+                
+                notification.textContent = `New message in ${chatName}: ${data.message.substring(0, 30)}${data.message.length > 30 ? '...' : ''}`;
             }
             notification.style.display = 'block';
             

@@ -1,5 +1,6 @@
 const {pool} = require('../connectDb/db');
 const {ApiError} = require('../exeptions/api-error');
+
 async function getPrivateChat(chatId) {
     const [chat] = await pool.query(`SELECT  CHATS.id as id,isGroup,
                     CHATS.created_at as CHATS_created_at, CHATS.updated_at as CHATS_updated_at , messages.id as message_id, sender_id,message,messages.created_at as message_created_at,
@@ -35,6 +36,7 @@ function messageResponse(messageObj) {
             id:messageObj.id,
             message:messageObj.message,
             chatId:messageObj.chatId,
+            isSystem:messageObj.isSystem,
             sender:{
                 senderId:messageObj.sender_id,
                 username:messageObj.username,
@@ -48,7 +50,7 @@ function messageResponse(messageObj) {
 }
 
 async function validateUserInChat(userId,chatId,isGroup){
-        let query = `SELECT * FROM CHATS WHERE ID=?`
+        let query = `SELECT * FROM chats WHERE ID=?`
         const params = [chatId];
         if (isGroup) {
                 query += ` AND isGroup = ?`;
@@ -69,6 +71,7 @@ async function validateUserInChat(userId,chatId,isGroup){
         `;
         const [participants] = await pool.query(query, [chatId, ...userId]);
         const arr = findMissingIds(userId,participants,false);
+        console.log(arr);
         
         if (arr.length !== 0) {
             throw new ApiError(`users with following ids already exists in chat ${arr.join('')}`,404);
@@ -78,7 +81,7 @@ async function validateUserInChat(userId,chatId,isGroup){
 
 async function validateUsers(usersArr) {
         const placeholders = usersArr.map(() => '?').join(',');
-        let query =  `SELECT ID as id FROM USERS WHERE ID in (${placeholders})`
+        let query =  `SELECT ID as id,username,email FROM users WHERE ID in (${placeholders})`
         const [users] = await pool.query(query,usersArr);
         
         
@@ -87,7 +90,7 @@ async function validateUsers(usersArr) {
         if (notFondedIds.length !== 0) {
             throw new ApiError(`users with following ids doesnt exits ${notFondedIds.join()}`,404)
         }
-
+        return users
 }
 
 function findMissingIds(usersArr, users,boolean) {
@@ -123,9 +126,9 @@ async function checkUsersIsNotInChat(chatId,usersArr,userId) {
 
 async function getChatParticipants(chatId) {
     const query = `
-            SELECT user_id as id,username,created_at,updated_at,role
+            SELECT user_id as id,username,created_at,updated_at,role,chat_id
             FROM chat_participants
-            INNER JOIN USERS ON USERS.ID = chat_participants.user_id
+            INNER JOIN users ON users.id = chat_participants.user_id
             WHERE chat_id=?`;
 
     const [getChatParticipants] = await pool.query(query,[chatId]);
@@ -134,13 +137,13 @@ async function getChatParticipants(chatId) {
 
 
 async function insertUsersToGroupChat(values) {
-    const query = `INSERT INTO CHAT_PARTICIPANTS(USER_ID,CHAT_ID,ROLE,isGroup) VALUES${values}`
+    const query = `INSERT INTO chat_participants(USER_ID,CHAT_ID,ROLE,isGroup) VALUES${values}`
     const [insertedChatParticipants] = await pool.query(query);
     return
 }
 
 async function getChat(chatId, isGroup) {
-    let query = `SELECT * FROM CHATS WHERE ID = ?`;
+    let query = `SELECT * FROM chats WHERE ID = ?`;
     const params = [chatId];
 
     if (isGroup) {
@@ -181,10 +184,40 @@ async function searchUsers(search,chatId,userId) {
     return results
 }
 
+async function getMessage(messageId,chatId,senderId){
+    const params = [messageId];
+    let query = `SELECT messages.id as id,message,chatId,sender_id,username,email,isSystem,messages.created_at,messages.updated_at
+          FROM  messages INNER JOIN users ON users.id=messages.sender_id WHERE messages.id=?`
+          if (chatId) {
+                query += ' AND chatId=?'
+                params.push(chatId)
+          }
+          
+          if (senderId) {
+                query += ' AND sender_id=?'
+                params.push(senderId)
+          }
+    const [getChatMessage] = await pool.query(query,params);
+    const responseMessage = messageResponse(getChatMessage[0]);
+    return responseMessage;    
+}
+
+async function insertMessage(sender_id,message,chatId,boolean) {
+    const newMessageQuery = `INSERT INTO messages (sender_id, message, chatId,isSystem)
+                                        VALUES (?,?,?,?)`
+    const [newMessage]  = await pool.query(newMessageQuery,[sender_id,message,chatId,boolean]);
+
+    return newMessage.insertId
+}
+
+
+
 module.exports = {getPrivateChat,
     validateUserInChat,
     validateUsers,messageResponse,
     getChatParticipants,
-    checkUsersIsNotInChat,insertUsersToGroupChat,getChat,searchUsers}
+    checkUsersIsNotInChat,
+    insertUsersToGroupChat,getChat,
+    searchUsers,getMessage,insertMessage}
 
 
