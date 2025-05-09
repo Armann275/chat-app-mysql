@@ -536,7 +536,7 @@ io.on('connection', (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT);
+// const PORT = process.env.PORT || 3000;
+server.listen(3000);
 
 module.exports = {io}
