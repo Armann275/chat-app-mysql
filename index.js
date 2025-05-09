@@ -537,6 +537,6 @@ io.on('connection', (socket) => {
 });
 
 
-server.listen(3000);
+server.listen(3306);
 
 module.exports = {io}
