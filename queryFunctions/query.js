@@ -61,20 +61,29 @@ async function validateUserInChat(userId,chatId,isGroup){
             throw new ApiError("Chat with this ID doesn't exist", 404);
         }
         
+        // console.log(checkChatExists);
+        
         
         const placeholders = userId.map(() => '?').join(',');
+        // console.log(`placeholders: ${placeholders}`);
+        
         query = `
             SELECT user_id as id,role 
             FROM chat_participants 
             WHERE chat_id = ? 
             AND user_id IN (${placeholders})
         `;
+        // console.log(query);
+        
+        
         const [participants] = await pool.query(query, [chatId, ...userId]);
+        // console.log(`participants:${participants}`);
+        
         const arr = findMissingIds(userId,participants,false);
-        console.log(arr);
+        // console.log(arr);
         
         if (arr.length !== 0) {
-            throw new ApiError(`users with following ids already exists in chat ${arr.join('')}`,404);
+            throw new ApiError(`users with following ids doesnt exists in chat ${arr.join('')}`,404);
         }
         return {participants:participants}
 }
@@ -210,7 +219,17 @@ async function insertMessage(sender_id,message,chatId,boolean) {
     return newMessage.insertId
 }
 
+async function sendSystemMessage(message,userId,chatId) {
+    const newMessageId = await insertMessage(userId,message,chatId,true);
+    const getChatMessage = await getMessage(newMessageId);
 
+    const updateChatQuery = `UPDATE chats 
+                                SET lastMessage=? 
+                                WHERE id=?`;
+
+    await pool.query(updateChatQuery,[newMessageId,chatId]);
+    return getChatMessage
+};
 
 module.exports = {getPrivateChat,
     validateUserInChat,
@@ -218,6 +237,6 @@ module.exports = {getPrivateChat,
     getChatParticipants,
     checkUsersIsNotInChat,
     insertUsersToGroupChat,getChat,
-    searchUsers,getMessage,insertMessage}
+    searchUsers,getMessage,insertMessage,sendSystemMessage}
 
 

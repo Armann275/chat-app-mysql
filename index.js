@@ -12,7 +12,7 @@ const {pool} = require('./connectDb/db')
 const path = require('path');
 const {getPrivateChat,validateUserInChat,checkUsersIsNotInChat,
     validateUsers,getChatParticipants,
-    messageResponse,getChat,insertUsersToGroupChat,searchUsers,getMessage,insertMessage} = require('./queryFunctions/query');
+    messageResponse,getChat,insertUsersToGroupChat,searchUsers,getMessage,sendSystemMessage,insertMessage} = require('./queryFunctions/query');
 const { ApiError } = require('./exeptions/api-error');
 const {errorHandling} = require('./middlewares/error-handling');
 
@@ -131,6 +131,9 @@ app.post('/createPrivateChat', validateToken, async (req, res, next) => {
         const getChatt = await getChat(existingChat[0].chat_id);
         
         const getChatParticipantss = await getChatParticipants(existingChat[0].chat_id);
+        console.log(`chat:${getChatt}`);
+        
+        io.to(`user_${targetUserId}`).emit('newChat',getChatt,getChatParticipantss);
         return res.status(200).json({chat:getChatt,chatParticipants:getChatParticipantss})
     } catch (error) {
        next(error);
@@ -154,9 +157,11 @@ app.post('/createGroup',validateToken, async (req,res,next) => {
 
         const chat = await getChat(newChat.insertId);
         const getChatParticipant = await getChatParticipants(newChat.insertId);
-        // for(let i = 0; i < usersArr.length; i++){
-        //     io.to(`user_${usersArr[i]}`).emit('new group',chat[0],getChatParticipant)
-        // }
+        console.log(chat[0],getChatParticipant);
+        
+        for(let i = 0; i < usersArr.length; i++){
+            io.to(`user_${usersArr[i]}`).emit('newChat',chat[0],getChatParticipant);
+        }
         return res.status(200).json({chat:chat[0],chatParticipants:getChatParticipant,currentUserId:req.userId});
     } catch (error) {
         next(error)
@@ -211,6 +216,7 @@ app.get("/getMessages/:chatId",validateToken,async (req,res,next) => {
     try {
         
         const chatId = +req.params.chatId;
+        console.log(`chat ${chatId}`);
         
         await validateUserInChat([req.userId],chatId)
         
@@ -320,15 +326,15 @@ app.post("/groupAdd",validateToken,async (req,res,next) => {
 
         const systemMessage = `${req.decoded.username} added ${users}`
 
-        const newMessageId = await insertMessage(req.userId,systemMessage,chatId,true);
+        const newSystemMessage = await sendSystemMessage(systemMessage,req.userId,chatId);
+
+        io.to(chatId).emit('receiveMessage',newSystemMessage);
+        console.log(chat,participants);
         
-        const getChatMessage = await getMessage(newMessageId);
-        
-        const updateChatQuery = `UPDATE chats 
-                                SET lastMessage=? 
-                                WHERE id=?`;
-        await pool.query(updateChatQuery,[newMessageId,chatId]);
-        io.to(chatId).emit('receiveMessage',getChatMessage);
+        for(let i = 0; i < usersArr.length; i++){
+            io.to(`user_${usersArr[i]}`).emit('newChat',chat[0],participants);
+        }
+        io.to(chatId).emit('updateChatParticipantsList',chatId,participants)
         return res.status(200).json({chat:chat, participants:participants});
     } catch (error) {
         next(error);
@@ -353,15 +359,11 @@ app.delete("/leaveGroup",validateToken,async (req,res,next) => {
 
         const systemMessage = `${req.decoded.username} leaved the group`
 
-        const newMessageId = await insertMessage(req.userId,systemMessage,chatId,true);
-        
-        const getChatMessage = await getMessage(newMessageId);
-        
-        const updateChatQuery = `UPDATE chats 
-                                SET lastMessage=? 
-                                WHERE id=?`;
-        await pool.query(updateChatQuery,[newMessageId,chatId]);
-        io.to(chatId).emit('receiveMessage',getChatMessage);
+        const newSystemMessage = await sendSystemMessage(systemMessage,req.userId,chatId);
+
+        const updatedParticipants = await getChatParticipants(chatId);
+        io.to(chatId).emit('receiveMessage',newSystemMessage);
+        io.to(chatId).emit('updateChatParticipantsList',chatId,updatedParticipants)
         return res.status(200).json({message:"you leaved this chat susscesfuly"});
     } catch (error) {
         next(error);
@@ -387,15 +389,13 @@ app.delete('/deleteUserFromChat',validateToken,async (req,res,next) => {
         
         const systemMessage = `${req.decoded.username} deleted user ${users[0].username}`
 
-        const newMessageId = await insertMessage(req.userId,systemMessage,chatId,true);
+        const newSystemMessage = await sendSystemMessage(systemMessage,req.userId,chatId);
 
-        const getChatMessage = await getMessage(newMessageId);
-        
-        const updateChatQuery = `UPDATE chats 
-                                SET lastMessage=? 
-                                WHERE id=?`;
-        await pool.query(updateChatQuery,[newMessageId,chatId]);
-        io.to(chatId).emit('receiveMessage',getChatMessage);
+        const updatedParticipants = await getChatParticipants(chatId);
+
+        io.to(`user_${userId}`).emit('removeChat',chatId);
+        io.to(chatId).emit('receiveMessage',newSystemMessage);
+        io.to(chatId).emit('updateChatParticipantsList',chatId,updatedParticipants);
         return res.status(200).json({message:"user Deleted succesfuly"})
     } catch (error) {
         next(error);
@@ -455,7 +455,8 @@ app.post("/renameGroup",validateToken,async (req,res,next) => {
         const getChatMessage = await getMessage(newMessageId);
         
         
-        io.to(chatId).emit('receiveMessage',getChatMessage)
+        io.to(chatId).emit('receiveMessage',getChatMessage);
+        io.to(chatId).emit('newGroupName',chatId,newGroupName);
         return res.status(200).json({chat:chat,message:getChatMessage});
     } catch (error) {
         next(error)
@@ -470,26 +471,30 @@ app.delete('/deleteMessage',validateToken, async (req,res,next) => {
         
         await validateUserInChat([req.userId],chatId);
         const message = await getMessage(messageId,chatId,req.userId);
-        console.log(message);
+        
         
         if (!message) {
             throw new ApiError(`there is no message with this id:${messageId}`);
         }
+        
         const updateMessage =  `UPDATE messages
-                                    SET isDeleted=?
+                                    SET isDeleted=?, message=?
                                 WHERE id=?`;
-        await pool.query(updateMessage,[true,messageId]);
-        io.to(chatId).emit('deleteMessage',chatId,messageId)
+        await pool.query(updateMessage,[true,`${req.decoded.username} deleted message`,messageId]);
+        
         return res.status(200).json({message:"message deleted succsefuly"});                        
     } catch (error) {
         next(error);
     }
 });
 
-app.delete('/deleteChat',validateToken,async (req,res,next) => {
+app.delete('/deleteChat',validateToken, async (req,res,next) => {
     try {
         const {chatId} = req.body;
+        console.log(req.userId);
+        
         await validateUserInChat([req.userId],chatId,false);
+
 
         const deleteChatQuery = `DELETE FROM chats WHERE id=?`;
         await pool.query(deleteChatQuery,[chatId]);
@@ -498,6 +503,7 @@ app.delete('/deleteChat',validateToken,async (req,res,next) => {
         next(error);
     }
 });
+
 
 
 app.use(errorHandling);
