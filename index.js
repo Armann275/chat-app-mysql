@@ -476,7 +476,7 @@ app.delete('/deleteMessage',validateToken, async (req,res,next) => {
         if (!message) {
             throw new ApiError(`there is no message with this id:${messageId}`);
         }
-        
+
         const updateMessage =  `UPDATE messages
                                     SET isDeleted=?, message=?
                                 WHERE id=?`;
@@ -498,6 +498,7 @@ app.delete('/deleteChat',validateToken, async (req,res,next) => {
 
         const deleteChatQuery = `DELETE FROM chats WHERE id=?`;
         await pool.query(deleteChatQuery,[chatId]);
+        io.to(chatId).emit('removeChat',chatId)
         return res.status(200).json({message:"chat Deleted sussesfuly"})
     } catch (error) {
         next(error);
