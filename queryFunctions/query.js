@@ -180,7 +180,7 @@ async function searchUsers(search,chatId,userId) {
         
     }
     const placeholders = participantsId.map(() => '?').join(',');
-    console.log(participantsId);
+    
     query += `AND id NOT IN (${placeholders}) limit ? `
     const params = [
         `${search}%`,      
@@ -188,7 +188,7 @@ async function searchUsers(search,chatId,userId) {
         5               
     ];
     const [results] = await pool.query(query, params);
-    console.log(results);
+    
     
     return results
 }

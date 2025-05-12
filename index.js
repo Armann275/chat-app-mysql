@@ -88,11 +88,12 @@ app.post('/login',async (req,res,next) => {
 app.post('/createPrivateChat', validateToken, async (req, res, next) => {
     try {
         const {targetUserId} = req.body;
-
+        
+        
         if (targetUserId === req.userId) {
             return res.status(409).json({ message: "You can't create a chat with yourself" });
         }
-    
+        
 
         await validateUsers([targetUserId]);
         
@@ -125,15 +126,19 @@ app.post('/createPrivateChat', validateToken, async (req, res, next) => {
 
             const getNewChatParticipants = await getChatParticipants(newChat.insertId);
             
+            const receiver = 'user_' + targetUserId;
+            console.log(receiver);
+            
+        
+            io.to(receiver).emit('newChat',getNewChat[0],getNewChatParticipants);
+
             return res.status(200).json({chat:getNewChat,chatParticipants:getNewChatParticipants})
         }
         
         const getChatt = await getChat(existingChat[0].chat_id);
         
         const getChatParticipantss = await getChatParticipants(existingChat[0].chat_id);
-        console.log(`chat:${getChatt}`);
         
-        io.to(`user_${targetUserId}`).emit('newChat',getChatt,getChatParticipantss);
         return res.status(200).json({chat:getChatt,chatParticipants:getChatParticipantss})
     } catch (error) {
        next(error);
@@ -157,11 +162,13 @@ app.post('/createGroup',validateToken, async (req,res,next) => {
 
         const chat = await getChat(newChat.insertId);
         const getChatParticipant = await getChatParticipants(newChat.insertId);
-        console.log(chat[0],getChatParticipant);
+        
         
         for(let i = 0; i < usersArr.length; i++){
             io.to(`user_${usersArr[i]}`).emit('newChat',chat[0],getChatParticipant);
         }
+        
+        
         return res.status(200).json({chat:chat[0],chatParticipants:getChatParticipant,currentUserId:req.userId});
     } catch (error) {
         next(error)
@@ -202,7 +209,7 @@ app.get('/searchUsers',validateToken,async (req,res,next) => {
     try {
     const search = req.query.q || '';
     const chatId = req.query.chatId;
-    console.log(search,chatId);
+    
     
     const getUsers = await searchUsers(search,chatId,req.userId);
     return res.status(200).json({users:getUsers});
@@ -216,7 +223,7 @@ app.get("/getMessages/:chatId",validateToken,async (req,res,next) => {
     try {
         
         const chatId = +req.params.chatId;
-        console.log(`chat ${chatId}`);
+        
         
         await validateUserInChat([req.userId],chatId)
         
@@ -290,7 +297,7 @@ FROM chats
 LEFT JOIN messages ON messages.id = chats.lastMessage 
 LEFT JOIN users ON users.id = messages.sender_id
 WHERE chats.id IN (${placeholders})
-ORDER BY messages.created_at DESC  
+ORDER BY messages.created_at   
 `
         
         const [getAllChats] = await pool.query(query,chatIdArr);
@@ -307,7 +314,7 @@ app.post("/groupAdd",validateToken,async (req,res,next) => {
         const {chatId,usersArr} = req.body;
         const usersObj  = await validateUsers(usersArr);
         const users = usersObj.map((el) => el.username);
-        console.log(users.join(','));
+        
         
         await checkUsersIsNotInChat(chatId,usersArr);
         
@@ -375,9 +382,9 @@ app.delete('/deleteUserFromChat',validateToken,async (req,res,next) => {
         const {userId,chatId} = req.body;
         const users = await validateUsers([userId]);
         const {participants} = await validateUserInChat([userId,req.userId],chatId,true);
-        console.log(participants);
+        
         const admin = participants.find((element) => element.role === "admin");
-        console.log(admin);
+        
         
         if (!admin) {
             throw new ApiError('you are not a admin you dont have the acsess',403)
@@ -467,7 +474,7 @@ app.delete('/deleteMessage',validateToken, async (req,res,next) => {
     try {
 
         const {chatId,messageId} = req.body;
-        console.log(chatId,messageId);
+        
         
         await validateUserInChat([req.userId],chatId);
         const message = await getMessage(messageId,chatId,req.userId);
@@ -491,7 +498,7 @@ app.delete('/deleteMessage',validateToken, async (req,res,next) => {
 app.delete('/deleteChat',validateToken, async (req,res,next) => {
     try {
         const {chatId} = req.body;
-        console.log(req.userId);
+        
         
         await validateUserInChat([req.userId],chatId,false);
 
@@ -515,6 +522,7 @@ io.on('connection', (socket) => {
     socket.on("join user",(userId) => {
         socket.join(`user_${userId}`);
         
+        console.log(`user_${userId}`);
         
     });
     
