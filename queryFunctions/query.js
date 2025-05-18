@@ -1,34 +1,34 @@
 const {pool} = require('../connectDb/db');
 const {ApiError} = require('../exeptions/api-error');
 
-async function getPrivateChat(chatId) {
-    const [chat] = await pool.query(`SELECT  CHATS.id as id,isGroup,
-                    CHATS.created_at as CHATS_created_at, CHATS.updated_at as CHATS_updated_at , messages.id as message_id, sender_id,message,messages.created_at as message_created_at,
-                    messages.updated_at as messages_updated_at, users.id as user_id, username,email
-                    FROM CHATS 
-                    LEFT JOIN messages ON CHATS.lastMessage = messages.id
-                    LEFT JOIN users ON users.id = sender_id
-                    WHERE CHATS.ID = ?`,[chatId]);
+// async function getPrivateChat(chatId) {
+//     const [chat] = await pool.query(`SELECT  CHATS.id as id,isGroup,
+//                     CHATS.created_at as CHATS_created_at, CHATS.updated_at as CHATS_updated_at , messages.id as message_id, sender_id,message,messages.created_at as message_created_at,
+//                     messages.updated_at as messages_updated_at, users.id as user_id, username,email
+//                     FROM CHATS 
+//                     LEFT JOIN messages ON CHATS.lastMessage = messages.id
+//                     LEFT JOIN users ON users.id = sender_id
+//                     WHERE CHATS.ID = ?`,[chatId]);
                     
-    return {
-        id:chat[0].id,
-        isGroup:chat[0].isGroup,
-        created_at:chat[0].CHATS_created_at,
-        updated_at:chat[0].CHATS_updated_at,
-        lastMessage:{
-            id:chat[0].message_id,
-            message:chat[0].message,
-            created_at:chat[0].message_created_at,
-            updated_at:chat[0].messages_updated_at,
-            sender:{
-                id:chat[0].sender_id,
-                username:chat[0].username,
-                email:chat[0].email
-            }
-        }
-    }
+//     return {
+//         id:chat[0].id,
+//         isGroup:chat[0].isGroup,
+//         created_at:chat[0].CHATS_created_at,
+//         updated_at:chat[0].CHATS_updated_at,
+//         lastMessage:{
+//             id:chat[0].message_id,
+//             message:chat[0].message,
+//             created_at:chat[0].message_created_at,
+//             updated_at:chat[0].messages_updated_at,
+//             sender:{
+//                 id:chat[0].sender_id,
+//                 username:chat[0].username,
+//                 email:chat[0].email
+//             }
+//         }
+//     }
    
-}
+// }
 
 function messageResponse(messageObj) {
     const response = {
@@ -231,12 +231,21 @@ async function sendSystemMessage(message,userId,chatId) {
     return getChatMessage
 };
 
-module.exports = {getPrivateChat,
+async function findUserBySessionId(userId,sessionId) {
+    const query =  `SELECT * FROM users WHERE ID=? AND sessionId=?`
+    const [user] = await pool.query(query,[userId,sessionId]);
+    // if (!user[0]) {
+    //     throw new ApiError('Session invalidated',403)
+    // }
+    return user[0];
+}
+
+module.exports = {
     validateUserInChat,
     validateUsers,messageResponse,
     getChatParticipants,
     checkUsersIsNotInChat,
     insertUsersToGroupChat,getChat,
-    searchUsers,getMessage,insertMessage,sendSystemMessage}
+    searchUsers,getMessage,insertMessage,sendSystemMessage,findUserBySessionId}
 
 

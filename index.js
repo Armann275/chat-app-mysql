@@ -2,22 +2,30 @@ const express = require('express');
 const app = express();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const socketIo = require('socket.io');
-const {validateToken} = require('./validate/validate');
+const {validateToken,validateRefreshToken} = require('./validate/validate');
 app.use(express.json());
 const http = require('http');
 const server = http.createServer(app);
 const io = socketIo(server);
-const {pool} = require('./connectDb/db')
+const {pool} = require('./connectDb/db');
 const path = require('path');
-const {getPrivateChat,validateUserInChat,checkUsersIsNotInChat,
+const {validateUserInChat,checkUsersIsNotInChat,
     validateUsers,getChatParticipants,
-    messageResponse,getChat,insertUsersToGroupChat,searchUsers,getMessage,sendSystemMessage,insertMessage} = require('./queryFunctions/query');
+    messageResponse,getChat,insertUsersToGroupChat,searchUsers,
+    getMessage,sendSystemMessage,insertMessage} = require('./queryFunctions/query');
+const {generateTokens} = require('./token/token');    
 const { ApiError } = require('./exeptions/api-error');
 const {errorHandling} = require('./middlewares/error-handling');
+app.use(cookieParser());
 
-app.get('/main',(req,res) => {
-    res.sendFile(path.join(__dirname,'main.html'))
+app.get('/',(req,res,next) => {
+    return res.redirect('/registration');
+});
+
+app.get('/main',validateRefreshToken,(req,res) => {
+    res.sendFile(path.join(__dirname,'main.html'));
 });
 
 app.get('/registration',(req,res) => {
@@ -35,7 +43,7 @@ app.post('/registration', async (req, res, next) => {
         if (!username || !email || !password) {
             return res.status(400).json({ message: "give all params" });
         }
-
+        
         const hashpassword = await bcrypt.hash(password, 10); 
         let query = "INSERT INTO users(username, email, password) VALUES (?, ?, ?)";
 
@@ -43,7 +51,7 @@ app.post('/registration', async (req, res, next) => {
 
         query = "SELECT id, username, email FROM users WHERE id = ?";
         const [insertedValue] = await pool.query(query, [insertInfo.insertId]);
-
+        
         return res.status(200).json({ user: insertedValue[0] });
     } catch (error) {
         if (error.code === 'ER_DUP_ENTRY') {
@@ -53,6 +61,7 @@ app.post('/registration', async (req, res, next) => {
         res.status(500).json({ message: "server error", error: error.message });
     }
 });
+
 
 
 app.post('/login',async (req,res,next) => {
@@ -67,22 +76,31 @@ app.post('/login',async (req,res,next) => {
     if (rows.length === 0) {
         return res.status(404).json({message:"we dont have such an email"})
     }
-
+    
     const comparePassword = await bcrypt.compare(password,rows[0].password);
     if (!comparePassword) {
         return res.status(400).json({message:"invalid password"})
     }
 
     const jwtPayload = {id:rows[0].id,username:rows[0].username,email:rows[0].email}
-    const token = jwt.sign(jwtPayload,'secret');
-    console.log({user:rows[0],token:token});
+    const tokens = await generateTokens(jwtPayload,rows[0].id); 
+
+
+    res.cookie('refreshToken', tokens.refreshToken, {
+        httpOnly: true,
+        sameSite: 'Strict',
+        secure: false, 
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+    });   
+   
     
-    return res.status(200).json({user:rows[0],token:token})
+    return res.status(200).json({user:rows[0],token:tokens.acsesstoken})
 
     } catch (error) {
         return res.status(500).json({message:"server error",error:error})
     }
 });
+
 
 
 app.post('/createPrivateChat', validateToken, async (req, res, next) => {
@@ -512,7 +530,24 @@ app.delete('/deleteChat',validateToken, async (req,res,next) => {
     }
 });
 
+app.get('/getMyinfo',validateToken,(req,res) => {
+    return res.status(200).json({
+        id:req.userId,
+        username:req.decoded.username,
+        email:req.decoded.email
+    });
+});
 
+app.post('/refresh',validateRefreshToken, async (req,res,next) => {
+    const tokens = await generateTokens({id:req.userId,username:req.decoded.username,email:req.decoded.email});
+    res.cookie('refreshToken', tokens.refreshToken, {
+        httpOnly: true,
+        sameSite: 'Strict',
+        secure: false, 
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+    });   
+    return res.status(200).json({token:tokens.acsesstoken});
+});
 
 app.use(errorHandling);
 
