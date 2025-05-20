@@ -694,7 +694,7 @@
     <script>
         const socket = io();
         
-        const token = localStorage.getItem('token');
+        let token = localStorage.getItem('token');
         const userId = +localStorage.getItem('userId');
         socket.emit("join user", userId);
 
@@ -712,6 +712,8 @@
         let allChats = [];
         let currentUserRole = null;
         let hasAdmin = false;
+        let isRefreshingToken = false;
+        let refreshQueue = [];
 
         // Function to generate avatar color based on name
         function getAvatarColor(name) {
@@ -725,16 +727,95 @@
             return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
         }
 
+        // Function to refresh the access token
+        async function refreshToken() {
+            if (isRefreshingToken) {
+                // If we're already refreshing, return a promise that will resolve when the refresh is complete
+                return new Promise((resolve) => {
+                    refreshQueue.push(resolve);
+                });
+            }
+
+            isRefreshingToken = true;
+            
+            try {
+                const response = await fetch('/refresh', {
+                    method: 'POST',
+                    credentials: 'include' // Important for sending cookies
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    token = data.token;
+                    localStorage.setItem('token', token);
+                    
+                    // Process all queued requests
+                    while (refreshQueue.length) {
+                        const resolve = refreshQueue.shift();
+                        resolve();
+                    }
+                    
+                    return true;
+                } else {
+                    // If refresh fails, redirect to login
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('userId');
+                    window.location.href = '/login';
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error refreshing token:', error);
+                localStorage.removeItem('token');
+                localStorage.removeItem('userId');
+                window.location.href = '/login';
+                return false;
+            } finally {
+                isRefreshingToken = false;
+            }
+        }
+
+        // Wrapper function for API calls with token refresh
+        async function fetchWithAuth(url, options = {}) {
+            // Set default headers if not provided
+            options.headers = options.headers || {};
+            options.headers['Authorization'] = `Bearer ${token}`;
+            
+            // Make the initial request
+            let response = await fetch(url, options);
+            
+            // If unauthorized, try to refresh the token
+            if (response.status === 401) {
+                console.log("401");
+                
+                const refreshSuccess = await refreshToken();
+                
+                if (refreshSuccess) {
+                    // Retry the original request with the new token
+                    options.headers['Authorization'] = `Bearer ${token}`;
+                    response = await fetch(url, options);
+                    
+                    // If still unauthorized after refresh, redirect to login
+                    if (response.status === 401) {
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('userId');
+                        window.location.href = '/login';
+                        return null;
+                    }
+                } else {
+                    // If refresh failed, we've already redirected to login
+                    return null;
+                }
+            }
+            
+            return response;
+        }
+
         // Function to fetch chats
         async function fetchChats() {
             try {
-                const response = await fetch('/getAllChats', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
+                const response = await fetchWithAuth('/getAllChats');
+                if (!response) return; // Redirect happened
+                
                 const data = await response.json();
                 const { chats, chatParticipants, currentUserId } = data;
                 
@@ -921,9 +1002,9 @@
                 const message = chatInput.value.trim();
                 if (message) {
                     const response = await sendMessageToAPI(currentChatId, message);
-                    if (response.success) {
+                    if (response && response.success) {
                         // appendMessage(response.message);
-                    } else {
+                    } else if (response && !response.success) {
                         alert('Failed to send message');
                     }
                     chatInput.value = '';
@@ -936,9 +1017,9 @@
                     const message = chatInput.value.trim();
                     if (message) {
                         const response = await sendMessageToAPI(currentChatId, message);
-                        if (response.success) {
+                        if (response && response.success) {
                             // appendMessage(response.message);
-                        } else {
+                        } else if (response && !response.success) {
                             alert('Failed to send message');
                         }
                         chatInput.value = '';
@@ -979,12 +1060,9 @@
         // Fetch messages for a specific chat
         async function fetchMessages(chatId) {
             try {
-                const response = await fetch(`/getMessages/${chatId}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                    }
-                });
+                const response = await fetchWithAuth(`/getMessages/${chatId}`);
+                if (!response) return []; // Redirect happened
+                
                 const data = await response.json();
                 return data.messages;
             } catch (error) {
@@ -1029,17 +1107,23 @@
         // Send message to the API
         async function sendMessageToAPI(chatId, message) {
             try {
-                const response = await fetch(`/sendMessage/${chatId}`, {
+                const response = await fetchWithAuth(`/sendMessage/${chatId}`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ message })
                 });
+                
+                if (!response) return { success: false, message: 'Error sending message' }; // Redirect happened
+                
                 const data = await response.json();
-                socket.emit('sendMessage', chatId, data.message);
-                return { success: response.status === 200, message: data.message };
+                if (response.ok) {
+                    socket.emit('sendMessage', chatId, data.message);
+                    return { success: true, message: data.message };
+                } else {
+                    return { success: false, message: data.message || 'Error sending message' };
+                }
             } catch (error) {
                 console.error('Error sending message:', error);
                 return { success: false, message: 'Error sending message' };
@@ -1100,10 +1184,9 @@
                     e.stopPropagation();
                     if (confirm(`Are you sure you want to remove ${p.username} from this group?`)) {
                         try {
-                            const response = await fetch('/deleteUserFromChat', {
+                            const response = await fetchWithAuth('/deleteUserFromChat', {
                                 method: 'DELETE',
                                 headers: {
-                                    'Authorization': `Bearer ${token}`,
                                     'Content-Type': 'application/json'
                                 },
                                 body: JSON.stringify({
@@ -1111,6 +1194,8 @@
                                     chatId: currentChatId
                                 })
                             });
+                            
+                            if (!response) return; // Redirect happened
                             
                             if (response.ok) {
                                 // Remove the user from the list
@@ -1146,10 +1231,9 @@
         // Leave group function
         async function leaveGroup() {
             try {
-                const response = await fetch('/leaveGroup', {
+                const response = await fetchWithAuth('/leaveGroup', {
                     method: 'DELETE',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -1157,6 +1241,8 @@
                     })
                 });
 
+                if (!response) return; // Redirect happened
+                
                 const data = await response.json();
                 if (response.ok) {
                     showNotification(data.message || 'You have left the group successfully');
@@ -1174,10 +1260,9 @@
         // Delete chat function
         async function deleteChat() {
             try {
-                const response = await fetch('/deleteChat', {
+                const response = await fetchWithAuth('/deleteChat', {
                     method: 'DELETE',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -1185,6 +1270,8 @@
                     })
                 });
 
+                if (!response) return; // Redirect happened
+                
                 const data = await response.json();
                 if (response.ok) {
                     showNotification('Chat deleted successfully');
@@ -1215,12 +1302,8 @@
         // User info button click handler
         document.getElementById('userInfoBtn').addEventListener('click', async () => {
             try {
-                const response = await fetch('/getMyinfo', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                const response = await fetchWithAuth('/getMyinfo');
+                if (!response) return; // Redirect happened
                 
                 if (response.ok) {
                     const userData = await response.json();
@@ -1317,12 +1400,8 @@
             const search = e.target.value.trim();
             if (search) {
                 try {
-                    const response = await fetch(`/searchUsers?q=${search}`, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
+                    const response = await fetchWithAuth(`/searchUsers?q=${search}`);
+                    if (!response) return; // Redirect happened
                     
                     const data = await response.json();
                     const searchResults = document.getElementById('userSearchResults');
@@ -1356,16 +1435,17 @@
                             
                             sendBtn.addEventListener('click', async () => {
                                 try {
-                                    const response = await fetch('/createPrivateChat', {
+                                    const response = await fetchWithAuth('/createPrivateChat', {
                                         method: 'POST',
                                         headers: {
-                                            'Authorization': `Bearer ${token}`,
                                             'Content-Type': 'application/json'
                                         },
                                         body: JSON.stringify({
                                             targetUserId: user.id
                                         })
                                     });
+                                    
+                                    if (!response) return; // Redirect happened
                                     
                                     const data = await response.json();
                                     if (response.ok) {
@@ -1404,12 +1484,8 @@
         searchUsersInput.addEventListener('input', async (e) => {
             const search = e.target.value.trim();
             if (search) {
-                const response = await fetch(`/searchUsers?q=${search}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                const response = await fetchWithAuth(`/searchUsers?q=${search}`);
+                if (!response) return; // Redirect happened
                 
                 const data = await response.json();
                 const searchResults = document.getElementById('searchResults');
@@ -1463,12 +1539,8 @@
         searchNewUsersInput.addEventListener('input', async (e) => {
             const search = e.target.value.trim();
             if (search && currentChatId) {
-                const response = await fetch(`/searchUsers?q=${search}&chatId=${currentChatId}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                const response = await fetchWithAuth(`/searchUsers?q=${search}&chatId=${currentChatId}`);
+                if (!response) return; // Redirect happened
                 
                 const data = await response.json();
                 const searchResults = document.getElementById('newUserResults');
@@ -1526,10 +1598,9 @@
             }
 
             try {
-                const response = await fetch('/groupAdd', {
+                const response = await fetchWithAuth('/groupAdd', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -1538,6 +1609,8 @@
                     })
                 });
 
+                if (!response) return; // Redirect happened
+                
                 const data = await response.json();
                 if (data.chat) {
                     showNotification('Users added successfully!');
@@ -1575,10 +1648,9 @@
             }
 
             try {
-                const response = await fetch('/createGroup', {
+                const response = await fetchWithAuth('/createGroup', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -1587,6 +1659,8 @@
                     })
                 });
 
+                if (!response) return; // Redirect happened
+                
                 const data = await response.json();
                 if (data.chat) {
                     showNotification('Group created successfully!');
@@ -1613,10 +1687,9 @@
             }
 
             try {
-                const response = await fetch('/renameGroup', {
+                const response = await fetchWithAuth('/renameGroup', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -1625,6 +1698,8 @@
                     })
                 });
 
+                if (!response) return; // Redirect happened
+                
                 const data = await response.json();
                 if (response.ok) {
                     // Update the chat title in the UI
