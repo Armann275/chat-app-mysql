@@ -715,6 +715,9 @@
         let isRefreshingToken = false;
         let refreshQueue = [];
 
+        let currentSendMessageHandler = null;
+        let currentEnterKeyHandler = null;
+
         // Function to generate avatar color based on name
         function getAvatarColor(name) {
             const colors = ['#7360F2', '#8B7AF6', '#6A5ACD', '#9370DB', '#7B68EE'];
@@ -946,116 +949,119 @@
         }
 
         // Open the chat window and fetch messages
-        async function openChatWindow(chat, chatParticipants, currentUserId) {
-            const chatWindow = document.getElementById('chatWindow');
-            const chatTitle = document.getElementById('chatTitle');
-            const chatAvatar = document.getElementById('chatAvatar');
-            const chatMessages = document.getElementById('chatMessages');
-            const chatInput = document.getElementById('chatInput');
-            const usersBtn = document.getElementById('viewUsersBtn');
-            const addUsersBtn = document.getElementById('addUsersBtn');
-            const leaveGroupBtn = document.getElementById('leaveGroupBtn');
-            const renameGroupBtn = document.getElementById('renameGroupBtn');
-            const deleteChatBtn = document.getElementById('deleteChatBtn');
+       // Updated openChatWindow function with proper event listener management
+async function openChatWindow(chat, chatParticipants, currentUserId) {
+    const chatWindow = document.getElementById('chatWindow');
+    const chatTitle = document.getElementById('chatTitle');
+    const chatAvatar = document.getElementById('chatAvatar');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const usersBtn = document.getElementById('viewUsersBtn');
+    const addUsersBtn = document.getElementById('addUsersBtn');
+    const leaveGroupBtn = document.getElementById('leaveGroupBtn');
+    const renameGroupBtn = document.getElementById('renameGroupBtn');
+    const deleteChatBtn = document.getElementById('deleteChatBtn');
 
-            currentChatId = chat.id;
-            currentChat = chat;
-            currentChatParticipants = chatParticipants.filter(p => p.chat_id === chat.id);
-            
-            // Find current user's role in this chat and check if there's an admin
-            const currentUserParticipant = currentChatParticipants.find(p => p.user_id === currentUserId);
-            currentUserRole = currentUserParticipant ? currentUserParticipant.role : null;
-            
-            // Check if there's any admin in the group
-            hasAdmin = currentChatParticipants.some(p => p.role === 'admin');
+    currentChatId = chat.id;
+    currentChat = chat;
+    currentChatParticipants = chatParticipants.filter(p => p.chat_id === chat.id);
+    
+    // Find current user's role in this chat and check if there's an admin
+    const currentUserParticipant = currentChatParticipants.find(p => p.user_id === currentUserId);
+    currentUserRole = currentUserParticipant ? currentUserParticipant.role : null;
+    
+    // Check if there's any admin in the group
+    hasAdmin = currentChatParticipants.some(p => p.role === 'admin');
 
-            if (chat.isGroup) {
-                chatTitle.textContent = chat.groupName;
-                chatAvatar.textContent = getInitials(chat.groupName);
-                chatAvatar.style.backgroundColor = getAvatarColor(chat.groupName);
-                usersBtn.style.display = 'block';
-                addUsersBtn.style.display = 'block';
-                leaveGroupBtn.style.display = 'block';
-                renameGroupBtn.style.display = currentUserRole === 'admin' ? 'block' : 'none';
-                deleteChatBtn.style.display = 'none'; // Hide delete button for group chats
-            } else {
-                const oppositeUser = chatParticipants.find(p => p.chat_id === chat.id && p.user_id !== currentUserId);
-                chatTitle.textContent = oppositeUser.username;
-                chatAvatar.textContent = getInitials(oppositeUser.username);
-                chatAvatar.style.backgroundColor = getAvatarColor(oppositeUser.username);
-                usersBtn.style.display = 'none';
-                addUsersBtn.style.display = 'none';
-                leaveGroupBtn.style.display = 'none';
-                renameGroupBtn.style.display = 'none';
-                deleteChatBtn.style.display = 'block'; // Show delete button for private chats
+    if (chat.isGroup) {
+        chatTitle.textContent = chat.groupName;
+        chatAvatar.textContent = getInitials(chat.groupName);
+        chatAvatar.style.backgroundColor = getAvatarColor(chat.groupName);
+        usersBtn.style.display = 'block';
+        addUsersBtn.style.display = 'block';
+        leaveGroupBtn.style.display = 'block';
+        renameGroupBtn.style.display = currentUserRole === 'admin' ? 'block' : 'none';
+        deleteChatBtn.style.display = 'none';
+    } else {
+        const oppositeUser = chatParticipants.find(p => p.chat_id === chat.id && p.user_id !== currentUserId);
+        chatTitle.textContent = oppositeUser.username;
+        chatAvatar.textContent = getInitials(oppositeUser.username);
+        chatAvatar.style.backgroundColor = getAvatarColor(oppositeUser.username);
+        usersBtn.style.display = 'none';
+        addUsersBtn.style.display = 'none';
+        leaveGroupBtn.style.display = 'none';
+        renameGroupBtn.style.display = 'none';
+        deleteChatBtn.style.display = 'block';
+    }
+
+    chatMessages.innerHTML = '';
+    chatWindow.style.display = 'flex';
+
+    // Fetch messages for the current chat
+    const messagesResponse = await fetchMessages(currentChatId);
+    messagesResponse.forEach(message => appendMessage(message));
+
+    // Remove previous event listeners if they exist
+    document.getElementById('sendMessage').onclick = null;
+    chatInput.onkeypress = null;
+
+    // Send message handler - using onclick assignment instead of addEventListener
+    document.getElementById('sendMessage').onclick = async () => {
+        const message = chatInput.value.trim();
+        if (message) {
+            const response = await sendMessageToAPI(currentChatId, message);
+            if (response && response.success) {
+                chatInput.value = '';
+            } else if (response && !response.success) {
+                alert('Failed to send message');
             }
-
-            chatMessages.innerHTML = '';
-            chatWindow.style.display = 'flex';
-
-            // Fetch messages for the current chat
-            const messagesResponse = await fetchMessages(currentChatId);
-            messagesResponse.forEach(message => appendMessage(message));
-
-            // Send message handler
-            document.getElementById('sendMessage').onclick = async () => {
-                const message = chatInput.value.trim();
-                if (message) {
-                    const response = await sendMessageToAPI(currentChatId, message);
-                    if (response && response.success) {
-                        // appendMessage(response.message);
-                    } else if (response && !response.success) {
-                        alert('Failed to send message');
-                    }
-                    chatInput.value = '';
-                }
-            };
-
-            // Also send message on Enter key
-            chatInput.addEventListener('keypress', async (e) => {
-                if (e.key === 'Enter') {
-                    const message = chatInput.value.trim();
-                    if (message) {
-                        const response = await sendMessageToAPI(currentChatId, message);
-                        if (response && response.success) {
-                            // appendMessage(response.message);
-                        } else if (response && !response.success) {
-                            alert('Failed to send message');
-                        }
-                        chatInput.value = '';
-                    }
-                }
-            });
-
-            // Show users in a group chat when clicking "View Users"
-            usersBtn.onclick = () => showUsers(chat, currentChatParticipants);
-
-            // Add users to group chat when clicking "Add Users"
-            addUsersBtn.onclick = () => {
-                document.getElementById('addUsersPopup').style.display = 'block';
-                document.getElementById('searchNewUsers').value = '';
-                document.getElementById('newUserResults').innerHTML = '';
-                selectedNewUsers = [];
-            };
-
-            // Leave group button handler
-            leaveGroupBtn.onclick = () => {
-                if (confirm('Are you sure you want to leave this group?')) {
-                    leaveGroup();
-                }
-            };
-
-            // Rename group button handler
-            renameGroupBtn.onclick = () => {
-                document.getElementById('renameGroupPopup').style.display = 'block';
-                document.getElementById('newGroupName').value = currentChat.groupName;
-            };
-
-            // Delete chat button handler
-            deleteChatBtn.onclick = () => {
-                document.getElementById('deleteConfirmationPopup').style.display = 'block';
-            };
         }
+    };
+
+    // Also send message on Enter key - using onkeypress assignment
+    chatInput.onkeypress = async (e) => {
+        if (e.key === 'Enter') {
+            const message = chatInput.value.trim();
+            if (message) {
+                const response = await sendMessageToAPI(currentChatId, message);
+                if (response && response.success) {
+                    chatInput.value = '';
+                } else if (response && !response.success) {
+                    alert('Failed to send message');
+                }
+            }
+        }
+    };
+
+    // Show users in a group chat when clicking "View Users"
+    usersBtn.onclick = () => showUsers(chat, currentChatParticipants);
+
+    // Add users to group chat when clicking "Add Users"
+    addUsersBtn.onclick = () => {
+        document.getElementById('addUsersPopup').style.display = 'block';
+        document.getElementById('searchNewUsers').value = '';
+        document.getElementById('newUserResults').innerHTML = '';
+        selectedNewUsers = [];
+    };
+
+    // Leave group button handler
+    leaveGroupBtn.onclick = () => {
+        if (confirm('Are you sure you want to leave this group?')) {
+            leaveGroup();
+        }
+    };
+
+    // Rename group button handler
+    renameGroupBtn.onclick = () => {
+        document.getElementById('renameGroupPopup').style.display = 'block';
+        document.getElementById('newGroupName').value = currentChat.groupName;
+    };
+
+    // Delete chat button handler
+    deleteChatBtn.onclick = () => {
+        document.getElementById('deleteConfirmationPopup').style.display = 'block';
+    };
+}
 
         // Fetch messages for a specific chat
         async function fetchMessages(chatId) {
