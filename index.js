@@ -14,7 +14,7 @@ const path = require('path');
 const {validateUserInChat,checkUsersIsNotInChat,
     validateUsers,getChatParticipants,
     messageResponse,getChat,insertUsersToGroupChat,searchUsers,
-    getMessage,sendSystemMessage,insertMessage} = require('./queryFunctions/query');
+    getMessage,sendSystemMessage,insertMessage,findMissingIds} = require('./queryFunctions/query');
 const {generateTokens} = require('./token/token');    
 const { ApiError } = require('./exeptions/api-error');
 const {errorHandling} = require('./middlewares/error-handling');
@@ -199,6 +199,7 @@ app.post("/sendMessage/:chatId",validateToken,async (req,res,next) => {
         const chatId = +req.params.chatId;
         const {message} = req.body;
         
+        
         await validateUserInChat([req.userId],chatId);
 
         query = `INSERT INTO messages(sender_id,message,chatId)VALUES(?,?,?)`;
@@ -208,6 +209,7 @@ app.post("/sendMessage/:chatId",validateToken,async (req,res,next) => {
         const [updateLatestMessage] = await pool.query(query,[newChatMessage.insertId,chatId])
         
         
+        console.log(newChatMessage.insertId,chatId);
        
         const getChatMessage = await getMessage(newChatMessage.insertId);
         
@@ -243,9 +245,10 @@ app.get("/getMessages/:chatId",validateToken,async (req,res,next) => {
         const chatId = +req.params.chatId;
         
         
+        
         await validateUserInChat([req.userId],chatId)
         
-        query = `select messages.id as id,sender_id,message,chatId, username ,email,isSystem, messages.created_at,messages.updated_at from messages inner join users on users.id = messages.sender_id
+        query = `select messages.id as id,sender_id,message,chatId, username ,email,isSystem,isDeleted, messages.created_at,messages.updated_at from messages inner join users on users.id = messages.sender_id
                     where 
                      chatId = ? order by created_at
                      
@@ -256,6 +259,7 @@ app.get("/getMessages/:chatId",validateToken,async (req,res,next) => {
         const [getMessages] = await pool.query(query,[chatId]);
         
         
+        
         for(let i = 0; i < getMessages.length; i++){ 
             let responseMessage = messageResponse(getMessages[i])
 
@@ -263,6 +267,8 @@ app.get("/getMessages/:chatId",validateToken,async (req,res,next) => {
                 responseMessage
             )
         }
+        
+        
         return res.status(200).json({messages:response,currentUserId:req.userId})
     } catch (error) {
         return res.status(500).json({ message: "Server error", error: error.message });
@@ -495,7 +501,9 @@ app.delete('/deleteMessage',validateToken, async (req,res,next) => {
         
         
         await validateUserInChat([req.userId],chatId);
+
         const message = await getMessage(messageId,chatId,req.userId);
+        
         
         
         if (!message) {
@@ -506,8 +514,31 @@ app.delete('/deleteMessage',validateToken, async (req,res,next) => {
                                     SET isDeleted=?, message=?
                                 WHERE id=?`;
         await pool.query(updateMessage,[true,`${req.decoded.username} deleted message`,messageId]);
+        const Message = await getMessage(messageId,chatId,req.userId);
+        return res.status(200).json({message:Message});                        
+    } catch (error) {
+        next(error);
+    }
+});
+
+app.post('/editMessage',validateToken, async(req,res,next) => {
+    try {
+        const {chatId,messageId,newMessage} = req.body;
+        await validateUserInChat([req.userId],chatId);
+
+        const message = await getMessage(messageId,chatId,req.userId);
         
-        return res.status(200).json({message:"message deleted succsefuly"});                        
+        if (!message) {
+            throw new ApiError(`there is no message with this id:${messageId}`);
+        }
+        
+        const updateMessage =  `UPDATE messages
+                                    SET  message=?
+                                WHERE id=?`;
+
+        await pool.query(updateMessage,[newMessage,messageId]);
+        const Message = await getMessage(messageId,chatId,req.userId);
+        return res.status(200).json({message:Message});                         
     } catch (error) {
         next(error);
     }
@@ -538,6 +569,36 @@ app.get('/getMyinfo',validateToken,(req,res) => {
     });
 });
 
+app.post('/readMessages',validateToken,async (req,res,next) => {
+    try {
+        const {chatId} = req.body;
+        console.log(req.userId);
+        
+        await validateUserInChat([req.userId],chatId);
+        
+        const messageQuery = `SELECT * FROM messages WHERE chatId=? AND sender_id != ?`;
+        const [messages] = await pool.query(messageQuery,[chatId,req.userId]);
+
+        const readMessagesQuery = `SELECT * FROM messageReaders WHERE chatId=? and userId=?`
+        const [readMessages] = await pool.query(readMessagesQuery,[chatId,req.userId]);
+
+        const messagesId = messages.map((el) => el.id);
+        const notReadIds = findMissingIds(messagesId,readMessages,false);
+
+        return res.json(notReadIds);
+        // const placeholders = notReadIds.map(() => "?").join(",");
+
+        let values = notReadIds.map(messId => `(${chatId},${req.userId},${messId})`);
+        const query = `INSERT INTO messageReaders(chatId,userId,messageId) VALUES${values}`
+        await pool.query(query)
+        return res.json({});
+    } catch (error) {
+        next(error);
+    }
+});
+
+
+
 app.post('/refresh',validateRefreshToken, async (req,res,next) => {
     const tokens = await generateTokens({id:req.userId,username:req.decoded.username,email:req.decoded.email});
     res.cookie('refreshToken', tokens.refreshToken, {
@@ -549,7 +610,10 @@ app.post('/refresh',validateRefreshToken, async (req,res,next) => {
     return res.status(200).json({token:tokens.acsesstoken});
 });
 
+
+
 app.use(errorHandling);
+
 
 io.on('connection', (socket) => {
     // console.log('A user connected');

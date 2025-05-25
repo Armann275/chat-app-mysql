@@ -8,7 +8,7 @@ async function generateTokens(jwtPayload,userId){
     const updateSessionQuery = `UPDATE users SET sessionId=? where id=?`
     await pool.query(updateSessionQuery,[jwtPayload.sessionId,userId]);
 
-    const acsesstoken = jwt.sign(jwtPayload,'acsess',{expiresIn:'3m'});
+    const acsesstoken = jwt.sign(jwtPayload,'acsess',{expiresIn:'3h'});
     const refreshToken = jwt.sign(jwtPayload,'refresh',{expiresIn:'30d'});
     return {acsesstoken,refreshToken}
 }

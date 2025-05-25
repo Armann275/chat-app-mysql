@@ -37,6 +37,7 @@ function messageResponse(messageObj) {
             message:messageObj.message,
             chatId:messageObj.chatId,
             isSystem:messageObj.isSystem,
+            isDeleted:messageObj.isDeleted,
             sender:{
                 senderId:messageObj.sender_id,
                 username:messageObj.username,
@@ -103,6 +104,11 @@ async function validateUsers(usersArr) {
 }
 
 function findMissingIds(usersArr, users,boolean) {
+    console.log(usersArr);
+    console.log(users);
+    
+    
+    
     const notFondedIds = [];
     let isFonded = false;
     for(let i = 0; i < usersArr.length; i++){
@@ -195,7 +201,7 @@ async function searchUsers(search,chatId,userId) {
 
 async function getMessage(messageId,chatId,senderId){
     const params = [messageId];
-    let query = `SELECT messages.id as id,message,chatId,sender_id,username,email,isSystem,messages.created_at,messages.updated_at
+    let query = `SELECT messages.id as id,message,chatId,sender_id,username,email,isSystem,isDeleted, messages.created_at,messages.updated_at
           FROM  messages INNER JOIN users ON users.id=messages.sender_id WHERE messages.id=?`
           if (chatId) {
                 query += ' AND chatId=?'
@@ -246,6 +252,6 @@ module.exports = {
     getChatParticipants,
     checkUsersIsNotInChat,
     insertUsersToGroupChat,getChat,
-    searchUsers,getMessage,insertMessage,sendSystemMessage,findUserBySessionId}
+    searchUsers,getMessage,insertMessage,sendSystemMessage,findUserBySessionId,findMissingIds}
 
 
