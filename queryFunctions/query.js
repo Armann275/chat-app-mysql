@@ -31,23 +31,32 @@ const {ApiError} = require('../exeptions/api-error');
 // }
 
 function messageResponse(messageObj) {
-    const response = {
-        message:{
-            id:messageObj.id,
-            message:messageObj.message,
-            chatId:messageObj.chatId,
-            isSystem:messageObj.isSystem,
-            isDeleted:messageObj.isDeleted,
-            sender:{
-                senderId:messageObj.sender_id,
-                username:messageObj.username,
-                email:messageObj.email
-            },
-            created_at:messageObj.created_at,
-            updated_at:messageObj.updated_at
-        }   
-    }
-    return response.message
+    return {
+        id: messageObj.id,
+        message: messageObj.message,
+        chatId: messageObj.chatId,
+        isSystem: messageObj.isSystem,
+        isDeleted: messageObj.isDeleted,
+        replyMessageId: messageObj.replyMessageId || null,
+        sender: {
+            senderId: messageObj.sender_id,
+            username: messageObj.username,
+            email: messageObj.email
+        },
+        repliedMessage: messageObj.replied_message
+            ? {
+                id: messageObj.replied_message_id,
+                message: messageObj.replied_message,
+                sender: {
+                    senderId: messageObj.replied_sender_id,
+                    username: messageObj.replied_username,
+                    email: messageObj.replied_email
+                }
+            }
+            : null,
+        created_at: messageObj.created_at,
+        updated_at: messageObj.updated_at
+    };
 }
 
 async function validateUserInChat(userId,chatId,isGroup){
@@ -199,28 +208,54 @@ async function searchUsers(search,chatId,userId) {
     return results
 }
 
-async function getMessage(messageId,chatId,senderId){
+async function getMessage(messageId, chatId, senderId) {
     const params = [messageId];
-    let query = `SELECT messages.id as id,message,chatId,sender_id,username,email,isSystem,isDeleted, messages.created_at,messages.updated_at
-          FROM  messages INNER JOIN users ON users.id=messages.sender_id WHERE messages.id=?`
-          if (chatId) {
-                query += ' AND chatId=?'
-                params.push(chatId)
-          }
-          
-          if (senderId) {
-                query += ' AND sender_id=?'
-                params.push(senderId)
-          }
-    const [getChatMessage] = await pool.query(query,params);
-    const responseMessage = messageResponse(getChatMessage[0]);
-    return responseMessage;    
+    let query = `
+        SELECT 
+            messages.id AS id,
+            messages.message,
+            messages.chatId,
+            messages.sender_id,
+            messages.isSystem,
+            messages.isDeleted,
+            messages.replyMessageId,
+            messages.created_at,
+            messages.updated_at,
+            users.username,
+            users.email,
+
+            replied.id AS replied_message_id,
+            replied.message AS replied_message,
+            replied.sender_id AS replied_sender_id,
+            replied_user.username AS replied_username,
+            replied_user.email AS replied_email
+
+        FROM messages
+        INNER JOIN users ON users.id = messages.sender_id
+        LEFT JOIN messages AS replied ON replied.id = messages.replyMessageId
+        LEFT JOIN users AS replied_user ON replied_user.id = replied.sender_id
+        WHERE messages.id = ?`;
+
+    if (chatId) {
+        query += ' AND messages.chatId = ?';
+        params.push(chatId);
+    }
+
+    if (senderId) {
+        query += ' AND messages.sender_id = ?';
+        params.push(senderId);
+    }
+
+    const [getChatMessage] = await pool.query(query, params);
+    if (!getChatMessage[0]) return null;
+
+    return messageResponse(getChatMessage[0]);
 }
 
-async function insertMessage(sender_id,message,chatId,boolean) {
-    const newMessageQuery = `INSERT INTO messages (sender_id, message, chatId,isSystem)
-                                        VALUES (?,?,?,?)`
-    const [newMessage]  = await pool.query(newMessageQuery,[sender_id,message,chatId,boolean]);
+async function insertMessage(sender_id,message,chatId,boolean,replyMessageId) {
+    const newMessageQuery = `INSERT INTO messages (sender_id, message, chatId,isSystem,replyMessageId)
+                                        VALUES (?,?,?,?,?)`
+    const [newMessage]  = await pool.query(newMessageQuery,[sender_id,message,chatId,boolean,replyMessageId]);
 
     return newMessage.insertId
 }

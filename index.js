@@ -20,6 +20,7 @@ const { ApiError } = require('./exeptions/api-error');
 const {errorHandling} = require('./middlewares/error-handling');
 app.use(cookieParser());
 
+
 app.get('/',(req,res,next) => {
     return res.redirect('/registration');
 });
@@ -218,7 +219,8 @@ app.post("/sendMessage/:chatId",validateToken,async (req,res,next) => {
         const response = {
             message:getChatMessage   
         }
-
+        console.log(response);
+        
         return res.status(200).json(response)
     } catch (error) {
         next(error)
@@ -243,15 +245,36 @@ app.get("/getMessages/:chatId",validateToken,async (req,res,next) => {
     try {
         
         const chatId = +req.params.chatId;
+        console.log(chatId);
+        
         
         
         
         await validateUserInChat([req.userId],chatId)
         
-        query = `select messages.id as id,sender_id,message,chatId, username ,email,isSystem,isDeleted, messages.created_at,messages.updated_at from messages inner join users on users.id = messages.sender_id
-                    where 
-                     chatId = ? order by created_at
-                     
+        query = `SELECT 
+          messages.id AS id,
+          messages.sender_id,
+          messages.message,
+          messages.chatId,
+          messages.isSystem,
+          messages.isDeleted,
+          messages.replyMessageId,
+          messages.created_at,
+          messages.updated_at,
+          users.username,
+          users.email,
+          replied.id AS replied_message_id,
+          replied.message AS replied_message,
+          replied_user.id AS replied_sender_id,
+          replied_user.username AS replied_username,
+          replied_user.email AS replied_email
+      FROM messages
+      INNER JOIN users ON users.id = messages.sender_id
+      LEFT JOIN messages AS replied ON replied.id = messages.replyMessageId
+      LEFT JOIN users AS replied_user ON replied_user.id = replied.sender_id
+      WHERE messages.chatId = ?
+      ORDER BY messages.created_at
         `
         
         const response = [];
@@ -267,9 +290,23 @@ app.get("/getMessages/:chatId",validateToken,async (req,res,next) => {
                 responseMessage
             )
         }
+        // console.log(response);
+
+        const readMessagesQuery = `SELECT messageReaders.userId as readerId, messageId, username,email, messageReaders.created_at
+         FROM messageReaders INNER JOIN messages
+         ON messages.id = messageReaders.messageId  INNER JOIN users
+         ON users.id = messageReaders.userId  where messages.sender_id=?`
+
+        const [readMessages] = await pool.query(readMessagesQuery,[req.userId]);
+
         
         
-        return res.status(200).json({messages:response,currentUserId:req.userId})
+        for(let i = 0; i < response.length; i++){
+            console.log(response[i]);
+        }
+        
+        
+        return res.status(200).json({messages:response,messageReaders:readMessages});
     } catch (error) {
         return res.status(500).json({ message: "Server error", error: error.message });
     }
@@ -325,7 +362,10 @@ ORDER BY messages.created_at
 `
         
         const [getAllChats] = await pool.query(query,chatIdArr);
+        
+        
         return res.status(200).json({chats:getAllChats,chatParticipants:chatParticipants,currentUserId:req.userId});
+
     } catch (error) {
         return res.status(500).json({ message: "Server error", error: error });
     }
@@ -335,6 +375,7 @@ ORDER BY messages.created_at
 
 app.post("/groupAdd",validateToken,async (req,res,next) => {
     try {
+        
         const {chatId,usersArr} = req.body;
         const usersObj  = await validateUsers(usersArr);
         const users = usersObj.map((el) => el.username);
@@ -479,6 +520,7 @@ app.post("/renameGroup",validateToken,async (req,res,next) => {
         const updateChatQuery = `UPDATE chats 
                                 SET lastMessage=?, groupName=? 
                                 WHERE id=?`;
+
         await pool.query(updateChatQuery,[newMessageId,newGroupName,chatId]);
 
         const chat = await getChat(chatId,true);
@@ -515,6 +557,8 @@ app.delete('/deleteMessage',validateToken, async (req,res,next) => {
                                 WHERE id=?`;
         await pool.query(updateMessage,[true,`${req.decoded.username} deleted message`,messageId]);
         const Message = await getMessage(messageId,chatId,req.userId);
+        console.log(Message);
+        
         return res.status(200).json({message:Message});                        
     } catch (error) {
         next(error);
@@ -523,6 +567,7 @@ app.delete('/deleteMessage',validateToken, async (req,res,next) => {
 
 app.post('/editMessage',validateToken, async(req,res,next) => {
     try {
+
         const {chatId,messageId,newMessage} = req.body;
         await validateUserInChat([req.userId],chatId);
 
@@ -543,6 +588,31 @@ app.post('/editMessage',validateToken, async(req,res,next) => {
         next(error);
     }
 });
+
+app.post('/replyMessage',validateToken,async (req,res,next) => {
+    try {
+        const {messageId,chatId,replyMessage} = req.body;
+        console.log(messageId,chatId,replyMessage);
+        
+        
+        await validateUserInChat([req.userId],chatId);
+        
+        
+        
+        const message = await getMessage(messageId,chatId)
+        
+        if (!message) {
+            throw new ApiError('there is no messege to reply with this id',404);
+        }
+
+        
+        const newMessageId = await insertMessage(req.userId,replyMessage,chatId,false,messageId);
+        const Insertedmessage = await getMessage(newMessageId,chatId,req.userId);
+        return res.status(200).json({message:Insertedmessage});
+    } catch (error) {
+        next(error);
+    }
+}); 
 
 app.delete('/deleteChat',validateToken, async (req,res,next) => {
     try {
@@ -582,16 +652,32 @@ app.post('/readMessages',validateToken,async (req,res,next) => {
         const readMessagesQuery = `SELECT * FROM messageReaders WHERE chatId=? and userId=?`
         const [readMessages] = await pool.query(readMessagesQuery,[chatId,req.userId]);
 
+
+
         const messagesId = messages.map((el) => el.id);
-        const notReadIds = findMissingIds(messagesId,readMessages,false);
+        let IsFounded = false;
+        const unreadIds = [];
 
-        return res.json(notReadIds);
-        // const placeholders = notReadIds.map(() => "?").join(",");
+        for(let i = 0; i < messagesId.length; i++){
+            for(let j = 0; j < readMessages.length; j++){
+                if (messagesId[i] === readMessages[j].messageId) {
+                    IsFounded = true
+                }
+            }
+            if (!IsFounded) {
+                unreadIds.push(messagesId[i])
+            }
+            IsFounded = false;
+        }
 
-        let values = notReadIds.map(messId => `(${chatId},${req.userId},${messId})`);
+        
+        let values = unreadIds.map(messId => `(${chatId},${req.userId},${messId})`);
+       
         const query = `INSERT INTO messageReaders(chatId,userId,messageId) VALUES${values}`
-        await pool.query(query)
-        return res.json({});
+        await pool.query(query);
+        
+        
+        return res.json({message:"messages read succesfuly"});
     } catch (error) {
         next(error);
     }
@@ -610,7 +696,14 @@ app.post('/refresh',validateRefreshToken, async (req,res,next) => {
     return res.status(200).json({token:tokens.acsesstoken});
 });
 
-
+app.post('/logout',validateToken,(req,res,next) => {
+    try {
+        res.clearCookie("refreshToken");
+        return res.status(200).json({message:"logout succesfully"});
+    } catch (error) {
+        next(error);
+    }
+});
 
 app.use(errorHandling);
 
