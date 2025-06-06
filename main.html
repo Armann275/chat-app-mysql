@@ -97,7 +97,69 @@
             width: 350px;
             max-width: 90%;
         }
-
+        .delete-message-btn, .edit-message-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.edit-message-btn {
+    left: -45px;
+}
+.message:hover .delete-message-btn,
+.message:hover .edit-message-btn {
+    opacity: 1;
+}
+.edit-message-popup {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+    width: 400px;
+    max-width: 90%;
+    padding: 20px;
+}
+.edit-message-textarea {
+    width: 100%;
+    height: 100px;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    resize: none;
+}
+.edit-message-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+.edit-message-cancel {
+    background-color: #ddd;
+    color: #333;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.edit-message-confirm {
+    background-color: var(--viber-primary);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
         .logout-confirmation-content {
             padding: 20px;
             text-align: center;
@@ -558,12 +620,8 @@
 
         /* Message Delete Button */
        .delete-message-btn {
-            position: absolute;
-            left: -20px;
-            top: 50%;
-            transform: translateY(-50%);
-            display: block;
-        }
+    left: -25px;
+}
 
         .message:hover .delete-message-btn {
             display: block;
@@ -716,6 +774,20 @@
         </div>
     </div>
 
+<div class="popup" id="editMessagePopup">
+    <div class="popup-header">
+        <div class="popup-title">Edit Message</div>
+        <button class="close-btn" id="closeEditMessageBtn">&times;</button>
+    </div>
+    <div class="popup-content">
+        <textarea class="edit-message-textarea" id="editMessageText"></textarea>
+        <div class="edit-message-buttons">
+            <button class="edit-message-cancel" id="cancelEditMessageBtn">Cancel</button>
+            <button class="edit-message-confirm" id="confirmEditMessageBtn">Save Changes</button>
+        </div>
+    </div>
+</div>
+
     <!-- Rename Group Popup -->
     <div class="popup" id="renameGroupPopup">
         <div class="popup-header">
@@ -734,6 +806,7 @@
     <!-- Notification -->
     <div class="notification" id="notification"></div>
 <div class="logout-confirmation-popup" id="logoutConfirmationPopup">
+
         <div class="popup-header">
             <div class="popup-title">Confirm Logout</div>
             <button class="close-btn" id="closeLogoutPopup">&times;</button>
@@ -1145,63 +1218,74 @@
 
         // Append message to the chat window
        function appendMessage(message) {
-            const chatMessages = document.getElementById('chatMessages');
-            const messageElement = document.createElement('div');
+    const chatMessages = document.getElementById('chatMessages');
+    const messageElement = document.createElement('div');
 
-            if (message.isSystem) {
-                messageElement.classList.add('message', 'system');
-                messageElement.innerHTML = `<div>${message.message}</div>`;
-            } else {
-                const messageClass = message.sender.senderId === userId ? 'sent' : 'received';
-                messageElement.classList.add('message', messageClass);
-                messageElement.dataset.messageId = message.id;
+    if (message.isSystem) {
+        messageElement.classList.add('message', 'system');
+        messageElement.innerHTML = `<div>${message.message}</div>`;
+    } else {
+        const messageClass = message.sender.senderId === userId ? 'sent' : 'received';
+        messageElement.classList.add('message', messageClass);
+        messageElement.dataset.messageId = message.id;
 
-                if (message.sender.senderId !== userId && currentChat.isGroup) {
-                    const senderName = document.createElement('div');
-                    senderName.classList.add('message-sender');
-                    senderName.textContent = message.sender.username;
-                    messageElement.appendChild(senderName);
-                }
-
-                if (message.repliedMessage) {
-                    const replyDiv = document.createElement('div');
-                    replyDiv.style.borderLeft = '3px solid #ccc';
-                    replyDiv.style.marginBottom = '5px';
-                    replyDiv.style.paddingLeft = '10px';
-                    replyDiv.innerHTML = `<div style="font-weight:bold;font-size:12px;color:#555">${message.repliedMessage.sender.username}</div><div style="font-size:12px;color:#555">${message.repliedMessage.message}</div>`;
-                    messageElement.appendChild(replyDiv);
-                }
-
-                const contentDiv = document.createElement('div');
-                contentDiv.textContent = message.message;
-                if (message.isDeleted === 1) {
-                    contentDiv.style.fontStyle = 'italic';
-                    contentDiv.style.color = '#888';
-                }
-                messageElement.appendChild(contentDiv);
-
-                const timeDiv = document.createElement('div');
-                timeDiv.classList.add('message-time');
-                timeDiv.textContent = formatTime(message.created_at);
-                messageElement.appendChild(timeDiv);
-
-                if (message.sender.senderId === userId && !message.isDeleted) {
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.classList.add('delete-message-btn');
-                    deleteBtn.innerHTML = '🗑️';
-                    deleteBtn.onclick = async (e) => {
-                        e.stopPropagation();
-                        if (confirm('Are you sure you want to delete this message?')) {
-                            await deleteMessage(message.id);
-                        }
-                    };
-                    messageElement.insertBefore(deleteBtn, messageElement.firstChild);
-                }
-            }
-
-            chatMessages.appendChild(messageElement);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (message.sender.senderId !== userId && currentChat.isGroup) {
+            const senderName = document.createElement('div');
+            senderName.classList.add('message-sender');
+            senderName.textContent = message.sender.username;
+            messageElement.appendChild(senderName);
         }
+
+        if (message.repliedMessage) {
+            const replyDiv = document.createElement('div');
+            replyDiv.style.borderLeft = '3px solid #ccc';
+            replyDiv.style.marginBottom = '5px';
+            replyDiv.style.paddingLeft = '10px';
+            replyDiv.innerHTML = `<div style="font-weight:bold;font-size:12px;color:#555">${message.repliedMessage.sender.username}</div><div style="font-size:12px;color:#555">${message.repliedMessage.message}</div>`;
+            messageElement.appendChild(replyDiv);
+        }
+
+        const contentDiv = document.createElement('div');
+        contentDiv.textContent = message.message;
+        if (message.isDeleted === 1) {
+            contentDiv.style.fontStyle = 'italic';
+            contentDiv.style.color = '#888';
+        }
+        messageElement.appendChild(contentDiv);
+
+        const timeDiv = document.createElement('div');
+        timeDiv.classList.add('message-time');
+        timeDiv.textContent = formatTime(message.created_at);
+        messageElement.appendChild(timeDiv);
+
+        if (message.sender.senderId === userId && !message.isDeleted) {
+    // Add delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.classList.add('delete-message-btn');
+    deleteBtn.innerHTML = '🗑️';
+    deleteBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (confirm('Are you sure you want to delete this message?')) {
+            await deleteMessage(message.id);
+        }
+    };
+    messageElement.insertBefore(deleteBtn, messageElement.firstChild);
+
+    // Add edit button
+    const editBtn = document.createElement('button');
+    editBtn.classList.add('edit-message-btn');
+    editBtn.innerHTML = '✏️';
+    editBtn.onclick = (e) => {
+        e.stopPropagation();
+        showEditMessagePopup(message.id, message.message);
+    };
+    messageElement.insertBefore(editBtn, messageElement.firstChild);
+}   
+    }
+
+    chatMessages.appendChild(messageElement);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
         
         // Delete a message
          async function deleteMessage(messageId) {
@@ -1233,11 +1317,12 @@
             // Find and update the message element in the UI
             const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
             if (messageElement) {
-                // Remove the delete button if it exists
+                // Remove both delete and edit buttons
                 const deleteBtn = messageElement.querySelector('.delete-message-btn');
-                if (deleteBtn) {
-                    deleteBtn.remove();
-                }
+                if (deleteBtn) deleteBtn.remove();
+                
+                const editBtn = messageElement.querySelector('.edit-message-btn');
+                if (editBtn) editBtn.remove();
 
                 // Update the message content
                 const contentDiv = messageElement.querySelector('div:not(.message-time):not(.message-sender)');
@@ -2098,7 +2183,68 @@
                 chatList.insertBefore(chatItem, chatList.firstChild);
             }
         }
+function showEditMessagePopup(messageId, currentMessage) {
+    document.getElementById('editMessageText').value = currentMessage;
+    document.getElementById('editMessagePopup').style.display = 'block';
+    
+    // Store the message ID in the popup for later use
+    document.getElementById('editMessagePopup').dataset.messageId = messageId;
+}
 
+// Function to edit message
+async function editMessage(messageId, newMessage) {
+    try {
+        const response = await fetchWithAuth('/editMessage', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                chatId: currentChatId,
+                messageId: messageId,
+                newMessage: newMessage
+            })
+        });
+
+        if (!response) return false; // Redirect happened
+
+        const data = await response.json();
+        if (response.ok) {
+            // Update the message in messagesData
+            const chatMessages = messagesData[currentChatId];
+            if (chatMessages) {
+                const messageIndex = chatMessages.findIndex(m => m.id === messageId);
+                if (messageIndex !== -1) {
+                    chatMessages[messageIndex] = data.message;
+                }
+            }
+
+            // Update the message in the UI
+            const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+            if (messageElement) {
+                const contentDiv = messageElement.querySelector('div:not(.message-time):not(.message-sender)');
+                if (contentDiv) {
+                    contentDiv.textContent = data.message.message;
+                    // Remove italic style if it was deleted before (though it shouldn't be possible here)
+                    contentDiv.style.fontStyle = 'normal';
+                    contentDiv.style.color = '';
+                }
+            }
+
+            // Emit to others
+            socket.emit('messageEdited', currentChatId, data.message);
+
+            showNotification('Message edited successfully');
+            return true;
+        } else {
+            throw new Error(data.message || 'Failed to edit message');
+        }
+    } catch (error) {
+        console.error('Error editing message:', error);
+        showNotification('Error editing message');
+        return false;
+    }
+}
         // Increment unread count for a chat
         function incrementUnreadCount(chatId) {
             if (!unreadCounts[chatId]) {
@@ -2174,6 +2320,27 @@
             alert('Logout error');
         }
     });     
+    document.getElementById('cancelEditMessageBtn').addEventListener('click', () => {
+    document.getElementById('editMessagePopup').style.display = 'none';
+});
+
+document.getElementById('confirmEditMessageBtn').addEventListener('click', async () => {
+    const messageId = document.getElementById('editMessagePopup').dataset.messageId;
+    const newMessage = document.getElementById('editMessageText').value.trim();
+    
+    if (!newMessage) {
+        alert('Message cannot be empty');
+        return;
+    }
+
+    const success = await editMessage(messageId, newMessage);
+    if (success) {
+        document.getElementById('editMessagePopup').style.display = 'none';
+    }
+});
+document.getElementById('closeEditMessageBtn').addEventListener('click', () => {
+    document.getElementById('editMessagePopup').style.display = 'none';
+});
         // Initialize chat list
         fetchChats();
     </script>
