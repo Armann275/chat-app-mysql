@@ -1202,52 +1202,64 @@
             chatMessages.appendChild(messageElement);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
-
+        
         // Delete a message
          async function deleteMessage(messageId) {
-            try {
-                const response = await fetchWithAuth('/deleteMessage', {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        chatId: currentChatId,
-                        messageId: messageId
-                    })
-                });
+    try {
+        const response = await fetchWithAuth('/deleteMessage', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                chatId: currentChatId,
+                messageId: messageId
+            })
+        });
 
-                if (!response) return;
+        if (!response) return;
 
-                const data = await response.json();
-                if (response.ok) {
-                    const chatMessages = messagesData[currentChatId];
-                    if (chatMessages) {
-                        const messageIndex = chatMessages.findIndex(m => m.id === messageId);
-                        if (messageIndex !== -1) {
-                            chatMessages[messageIndex] = data.message;
-                        }
-                    }
-
-                    // Re-render the message using appendMessage
-                    const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
-                    if (messageElement) {
-                        messageElement.remove();
-                    }
-                    appendMessage(data.message);
-
-                    // Emit to others
-                    socket.emit('messageDeleted', currentChatId, data.message);
-
-                    showNotification('Message deleted successfully');
-                } else {
-                    throw new Error(data.message || 'Failed to delete message');
+        const data = await response.json();
+        if (response.ok) {
+            // Update the message in messagesData
+            const chatMessages = messagesData[currentChatId];
+            if (chatMessages) {
+                const messageIndex = chatMessages.findIndex(m => m.id === messageId);
+                if (messageIndex !== -1) {
+                    chatMessages[messageIndex] = data.message;
                 }
-            } catch (error) {
-                console.error('Error deleting message:', error);
-                showNotification('Error deleting message');
             }
+
+            // Find and update the message element in the UI
+            const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+            if (messageElement) {
+                // Remove the delete button if it exists
+                const deleteBtn = messageElement.querySelector('.delete-message-btn');
+                if (deleteBtn) {
+                    deleteBtn.remove();
+                }
+
+                // Update the message content
+                const contentDiv = messageElement.querySelector('div:not(.message-time):not(.message-sender)');
+                if (contentDiv) {
+                    contentDiv.textContent = data.message.message;
+                    contentDiv.style.fontStyle = 'italic';
+                    contentDiv.style.color = '#888';
+                }
+            }
+
+            // Emit to others
+            socket.emit('messageDeleted', currentChatId, data.message);
+
+            showNotification('Message deleted successfully');
+        } else {
+            throw new Error(data.message || 'Failed to delete message');
         }
+    } catch (error) {
+        console.error('Error deleting message:', error);
+        showNotification('Error deleting message');
+    }
+}
         
         // Send message to the API
         async function sendMessageToAPI(chatId, message) {
