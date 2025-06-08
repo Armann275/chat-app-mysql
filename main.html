@@ -72,7 +72,79 @@
             background-color: white;
             font-size: 14px;
         }
-
+.reply-message-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.received .reply-message-btn {
+    right: -25px;
+}
+.sent .reply-message-btn {
+    left: -70px;
+}
+.message:hover .reply-message-btn {
+    opacity: 1;
+}
+.reply-message-popup {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+    width: 400px;
+    max-width: 90%;
+    padding: 20px;
+}
+.reply-message-textarea {
+    width: 100%;
+    height: 100px;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    resize: none;
+}
+.reply-message-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+.reply-message-cancel {
+    background-color: #ddd;
+    color: #333;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.reply-message-confirm {
+    background-color: var(--viber-primary);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.reply-preview {
+    background-color: #f5f5f5;
+    padding: 8px;
+    border-left: 3px solid var(--viber-primary);
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: #555;
+}
         .chat-list {
             list-style-type: none;
         }
@@ -788,6 +860,21 @@
     </div>
 </div>
 
+<div class="popup" id="replyMessagePopup">
+    <div class="popup-header">
+        <div class="popup-title">Reply to Message</div>
+        <button class="close-btn" id="closeReplyMessageBtn">&times;</button>
+    </div>
+    <div class="popup-content">
+        <div class="reply-preview" id="replyMessagePreview"></div>
+        <textarea class="reply-message-textarea" id="replyMessageText" placeholder="Type your reply..."></textarea>
+        <div class="reply-message-buttons">
+            <button class="reply-message-cancel" id="cancelReplyMessageBtn">Cancel</button>
+            <button class="reply-message-confirm" id="confirmReplyMessageBtn">Send Reply</button>
+        </div>
+    </div>
+</div>
+
     <!-- Rename Group Popup -->
     <div class="popup" id="renameGroupPopup">
         <div class="popup-header">
@@ -1080,127 +1167,144 @@
 
         // Open the chat window and fetch messages
         async function openChatWindow(chat, chatParticipants, currentUserId) {
-            const chatWindow = document.getElementById('chatWindow');
-            const chatTitle = document.getElementById('chatTitle');
-            const chatAvatar = document.getElementById('chatAvatar');
-            const chatMessages = document.getElementById('chatMessages');
-            const chatInput = document.getElementById('chatInput');
-            const usersBtn = document.getElementById('viewUsersBtn');
-            const addUsersBtn = document.getElementById('addUsersBtn');
-            const leaveGroupBtn = document.getElementById('leaveGroupBtn');
-            const renameGroupBtn = document.getElementById('renameGroupBtn');
-            const deleteChatBtn = document.getElementById('deleteChatBtn');
+    const chatWindow = document.getElementById('chatWindow');
+    const chatTitle = document.getElementById('chatTitle');
+    const chatAvatar = document.getElementById('chatAvatar');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const usersBtn = document.getElementById('viewUsersBtn');
+    const addUsersBtn = document.getElementById('addUsersBtn');
+    const leaveGroupBtn = document.getElementById('leaveGroupBtn');
+    const renameGroupBtn = document.getElementById('renameGroupBtn');
+    const deleteChatBtn = document.getElementById('deleteChatBtn');
 
-            currentChatId = chat.id;
-            currentChat = chat;
-            currentChatParticipants = chatParticipants.filter(p => p.chat_id === chat.id);
+    currentChatId = chat.id;
+    currentChat = chat;
+    currentChatParticipants = chatParticipants.filter(p => p.chat_id === chat.id);
+    
+    // Find current user's role in this chat and check if there's an admin
+    const currentUserParticipant = currentChatParticipants.find(p => p.user_id === currentUserId);
+    currentUserRole = currentUserParticipant ? currentUserParticipant.role : null;
+    
+    // Check if there's any admin in the group
+    hasAdmin = currentChatParticipants.some(p => p.role === 'admin');
+
+    if (chat.isGroup) {
+        chatTitle.textContent = chat.groupName;
+        chatAvatar.textContent = getInitials(chat.groupName);
+        chatAvatar.style.backgroundColor = getAvatarColor(chat.groupName);
+        usersBtn.style.display = 'block';
+        addUsersBtn.style.display = 'block';
+        leaveGroupBtn.style.display = 'block';
+        renameGroupBtn.style.display = currentUserRole === 'admin' ? 'block' : 'none';
+        deleteChatBtn.style.display = 'none';
+    } else {
+        const oppositeUser = chatParticipants.find(p => p.chat_id === chat.id && p.user_id !== currentUserId);
+        chatTitle.textContent = oppositeUser.username;
+        chatAvatar.textContent = getInitials(oppositeUser.username);
+        chatAvatar.style.backgroundColor = getAvatarColor(oppositeUser.username);
+        usersBtn.style.display = 'none';
+        addUsersBtn.style.display = 'none';
+        leaveGroupBtn.style.display = 'none';
+        renameGroupBtn.style.display = 'none';
+        deleteChatBtn.style.display = 'block';
+    }
+
+    // Always clear the chat messages before loading new ones
+    chatMessages.innerHTML = '';
+    chatWindow.style.display = 'flex';
+
+    // Always fetch fresh messages when opening a chat to ensure consistency
+    try {
+        const messagesResponse = await fetchMessages(currentChatId);
+        if (messagesResponse) {
+            // Store messages in our messagesData object
+            messagesData[chat.id] = messagesResponse;
             
-            // Find current user's role in this chat and check if there's an admin
-            const currentUserParticipant = currentChatParticipants.find(p => p.user_id === currentUserId);
-            currentUserRole = currentUserParticipant ? currentUserParticipant.role : null;
+            // Display all messages
+            messagesResponse.forEach(message => appendMessage(message));
             
-            // Check if there's any admin in the group
-            hasAdmin = currentChatParticipants.some(p => p.role === 'admin');
-
-            if (chat.isGroup) {
-                chatTitle.textContent = chat.groupName;
-                chatAvatar.textContent = getInitials(chat.groupName);
-                chatAvatar.style.backgroundColor = getAvatarColor(chat.groupName);
-                usersBtn.style.display = 'block';
-                addUsersBtn.style.display = 'block';
-                leaveGroupBtn.style.display = 'block';
-                renameGroupBtn.style.display = currentUserRole === 'admin' ? 'block' : 'none';
-                deleteChatBtn.style.display = 'none';
-            } else {
-                const oppositeUser = chatParticipants.find(p => p.chat_id === chat.id && p.user_id !== currentUserId);
-                chatTitle.textContent = oppositeUser.username;
-                chatAvatar.textContent = getInitials(oppositeUser.username);
-                chatAvatar.style.backgroundColor = getAvatarColor(oppositeUser.username);
-                usersBtn.style.display = 'none';
-                addUsersBtn.style.display = 'none';
-                leaveGroupBtn.style.display = 'none';
-                renameGroupBtn.style.display = 'none';
-                deleteChatBtn.style.display = 'block';
-            }
-
-            chatMessages.innerHTML = '';
-            chatWindow.style.display = 'flex';
-
-            // Check if we already have messages for this chat
-            if (messagesData[chat.id]) {
-                // Display existing messages
-                messagesData[chat.id].forEach(message => appendMessage(message));
-            } else {
-                // Fetch messages for the current chat
-                const messagesResponse = await fetchMessages(currentChatId);
-                if (messagesResponse) {
-                    // Store messages in our messagesData object
-                    messagesData[chat.id] = messagesResponse;
-                    messagesResponse.forEach(message => appendMessage(message));
-                }
-            }
-
-            // Remove previous event listeners if they exist
-            document.getElementById('sendMessage').onclick = null;
-            chatInput.onkeypress = null;
-
-            // Send message handler - using onclick assignment instead of addEventListener
-            document.getElementById('sendMessage').onclick = async () => {
-                const message = chatInput.value.trim();
-                if (message) {
-                    const response = await sendMessageToAPI(currentChatId, message);
-                    if (response && response.success) {
-                        chatInput.value = '';
-                    } else if (response && !response.success) {
-                        alert('Failed to send message');
-                    }
-                }
-            };
-
-            // Also send message on Enter key - using onkeypress assignment
-            chatInput.onkeypress = async (e) => {
-                if (e.key === 'Enter') {
-                    const message = chatInput.value.trim();
-                    if (message) {
-                        const response = await sendMessageToAPI(currentChatId, message);
-                        if (response && response.success) {
-                            chatInput.value = '';
-                        } else if (response && !response.success) {
-                            alert('Failed to send message');
-                        }
-                    }
-                }
-            };
-
-            // Show users in a group chat when clicking "View Users"
-            usersBtn.onclick = () => showUsers(chat, currentChatParticipants);
-
-            // Add users to group chat when clicking "Add Users"
-            addUsersBtn.onclick = () => {
-                document.getElementById('addUsersPopup').style.display = 'block';
-                document.getElementById('searchNewUsers').value = '';
-                document.getElementById('newUserResults').innerHTML = '';
-                selectedNewUsers = [];
-            };
-
-            // Leave group button handler
-            leaveGroupBtn.onclick = () => {
-                if (confirm('Are you sure you want to leave this group?')) {
-                    leaveGroup();
-                }
-            };
-
-            // Rename group button handler
-            renameGroupBtn.onclick = () => {
-                document.getElementById('renameGroupPopup').style.display = 'block';
-                document.getElementById('newGroupName').value = currentChat.groupName;
-            };
-
-            // Delete chat button handler
-            deleteChatBtn.onclick = () => {
-                document.getElementById('deleteConfirmationPopup').style.display = 'block';
-            };
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
+    } catch (error) {
+        console.error('Error loading messages:', error);
+        showNotification('Error loading messages');
+    }
+
+    // Remove previous event listeners if they exist
+    document.getElementById('sendMessage').onclick = null;
+    chatInput.onkeypress = null;
+
+    // Send message handler - using onclick assignment instead of addEventListener
+    document.getElementById('sendMessage').onclick = async () => {
+        const message = chatInput.value.trim();
+        if (message) {
+            const response = await sendMessageToAPI(currentChatId, message);
+            if (response && response.success) {
+                chatInput.value = '';
+            } else if (response && !response.success) {
+                alert('Failed to send message');
+            }
+        }
+    };
+
+    // Also send message on Enter key - using onkeypress assignment
+    chatInput.onkeypress = async (e) => {
+        if (e.key === 'Enter') {
+            const message = chatInput.value.trim();
+            if (message) {
+                const response = await sendMessageToAPI(currentChatId, message);
+                if (response && response.success) {
+                    chatInput.value = '';
+                } else if (response && !response.success) {
+                    alert('Failed to send message');
+                }
+            }
+        }
+    };
+
+    // Show users in a group chat when clicking "View Users"
+    usersBtn.onclick = () => showUsers(chat, currentChatParticipants);
+
+    // Add users to group chat when clicking "Add Users"
+    addUsersBtn.onclick = () => {
+        document.getElementById('addUsersPopup').style.display = 'block';
+        document.getElementById('searchNewUsers').value = '';
+        document.getElementById('newUserResults').innerHTML = '';
+        selectedNewUsers = [];
+    };
+
+    // Leave group button handler
+    leaveGroupBtn.onclick = () => {
+        if (confirm('Are you sure you want to leave this group?')) {
+            leaveGroup();
+        }
+    };
+
+    // Rename group button handler
+    renameGroupBtn.onclick = () => {
+        document.getElementById('renameGroupPopup').style.display = 'block';
+        document.getElementById('newGroupName').value = currentChat.groupName;
+    };
+
+    // Delete chat button handler
+    deleteChatBtn.onclick = () => {
+        document.getElementById('deleteConfirmationPopup').style.display = 'block';
+    };
+
+    // Clear unread count when opening chat
+    if (unreadCounts[chat.id]) {
+        unreadCounts[chat.id] = 0;
+        const chatItem = document.querySelector(`.chat-item[data-chat-id="${chat.id}"]`);
+        if (chatItem) {
+            const badge = chatItem.querySelector('.unread-count');
+            if (badge) {
+                badge.remove();
+            }
+        }
+    }
+}
 
         // Fetch messages for a specific chat
         async function fetchMessages(chatId) {
@@ -1258,29 +1362,41 @@
         timeDiv.textContent = formatTime(message.created_at);
         messageElement.appendChild(timeDiv);
 
-        if (message.sender.senderId === userId && !message.isDeleted) {
-    // Add delete button
-    const deleteBtn = document.createElement('button');
-    deleteBtn.classList.add('delete-message-btn');
-    deleteBtn.innerHTML = '🗑️';
-    deleteBtn.onclick = async (e) => {
-        e.stopPropagation();
-        if (confirm('Are you sure you want to delete this message?')) {
-            await deleteMessage(message.id);
+        // Only add reply button if message is not deleted
+        if (message.isDeleted !== 1) {
+            const replyBtn = document.createElement('button');
+            replyBtn.classList.add('reply-message-btn');
+            replyBtn.innerHTML = '↩️';
+            replyBtn.onclick = (e) => {
+                e.stopPropagation();
+                showReplyMessagePopup(message.id, message.sender.username, message.message);
+            };
+            messageElement.insertBefore(replyBtn, messageElement.firstChild);
         }
-    };
-    messageElement.insertBefore(deleteBtn, messageElement.firstChild);
 
-    // Add edit button
-    const editBtn = document.createElement('button');
-    editBtn.classList.add('edit-message-btn');
-    editBtn.innerHTML = '✏️';
-    editBtn.onclick = (e) => {
-        e.stopPropagation();
-        showEditMessagePopup(message.id, message.message);
-    };
-    messageElement.insertBefore(editBtn, messageElement.firstChild);
-}   
+        if (message.sender.senderId === userId && !message.isDeleted) {
+            // Add delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.classList.add('delete-message-btn');
+            deleteBtn.innerHTML = '🗑️';
+            deleteBtn.onclick = async (e) => {
+                e.stopPropagation();
+                if (confirm('Are you sure you want to delete this message?')) {
+                    await deleteMessage(message.id);
+                }
+            };
+            messageElement.insertBefore(deleteBtn, messageElement.firstChild);
+
+            // Add edit button
+            const editBtn = document.createElement('button');
+            editBtn.classList.add('edit-message-btn');
+            editBtn.innerHTML = '✏️';
+            editBtn.onclick = (e) => {
+                e.stopPropagation();
+                showEditMessagePopup(message.id, message.message);
+            };
+            messageElement.insertBefore(editBtn, messageElement.firstChild);
+        }   
     }
 
     chatMessages.appendChild(messageElement);
@@ -1317,20 +1433,34 @@
             // Find and update the message element in the UI
             const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
             if (messageElement) {
-                // Remove both delete and edit buttons
+                // Remove action buttons
                 const deleteBtn = messageElement.querySelector('.delete-message-btn');
                 if (deleteBtn) deleteBtn.remove();
                 
                 const editBtn = messageElement.querySelector('.edit-message-btn');
                 if (editBtn) editBtn.remove();
 
-                // Update the message content
-                const contentDiv = messageElement.querySelector('div:not(.message-time):not(.message-sender)');
-                if (contentDiv) {
-                    contentDiv.textContent = data.message.message;
-                    contentDiv.style.fontStyle = 'italic';
-                    contentDiv.style.color = '#888';
+                const replyBtn = messageElement.querySelector('.reply-message-btn');
+                if (replyBtn) replyBtn.remove();
+
+                // Get all direct child divs of the message
+                const messageDivs = Array.from(messageElement.querySelectorAll(':scope > div'));
+
+                // The main message content is always the last div before message-time
+                // (after sender name and reply preview if they exist)
+                const mainContentDiv = messageDivs.find(div => 
+                    !div.classList.contains('message-sender') && 
+                    !div.classList.contains('message-time') &&
+                    !div.style.borderLeft
+                );
+
+                if (mainContentDiv) {
+                    mainContentDiv.textContent = data.message.message;
+                    mainContentDiv.style.fontStyle = 'italic';
+                    mainContentDiv.style.color = '#888';
                 }
+
+                // Keep the reply preview exactly as is - don't modify it
             }
 
             // Emit to others
@@ -1345,7 +1475,6 @@
         showNotification('Error deleting message');
     }
 }
-        
         // Send message to the API
         async function sendMessageToAPI(chatId, message) {
             try {
@@ -1476,7 +1605,57 @@
 
             userListPopup.style.display = 'block';
         }
+// Show reply message popup
+function showReplyMessagePopup(messageId, senderName, originalMessage) {
+    document.getElementById('replyMessageText').value = '';
+    document.getElementById('replyMessagePreview').innerHTML = `
+        <strong>Replying to ${senderName}:</strong> ${originalMessage}
+    `;
+    document.getElementById('replyMessagePopup').style.display = 'block';
+    document.getElementById('replyMessagePopup').dataset.messageId = messageId;
+}
 
+// Handle reply message submission
+async function replyToMessage(messageId, replyMessage) {
+    try {
+        const response = await fetchWithAuth('/replyMessage', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                messageId: messageId,
+                chatId: currentChatId,
+                replyMessage: replyMessage
+            })
+        });
+
+        if (!response) return false;
+
+        const data = await response.json();
+        if (response.ok) {
+            // Add the new message to our messagesData storage
+            if (!messagesData[currentChatId]) {
+                messagesData[currentChatId] = [];
+            }
+            messagesData[currentChatId].push(data.message);
+            
+            // Don't append here - let the socket.io handler do it
+            // appendMessage(data.message);
+            
+            // Emit to others
+            socket.emit('sendMessage', currentChatId, data.message);
+            
+            return true;
+        } else {
+            throw new Error(data.message || 'Failed to send reply');
+        }
+    } catch (error) {
+        console.error('Error sending reply:', error);
+        showNotification('Error sending reply');
+        return false;
+    }
+}
         // Leave group function
         async function leaveGroup() {
             try {
@@ -2206,7 +2385,7 @@ async function editMessage(messageId, newMessage) {
             })
         });
 
-        if (!response) return false; // Redirect happened
+        if (!response) return false;
 
         const data = await response.json();
         if (response.ok) {
@@ -2222,12 +2401,19 @@ async function editMessage(messageId, newMessage) {
             // Update the message in the UI
             const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
             if (messageElement) {
-                const contentDiv = messageElement.querySelector('div:not(.message-time):not(.message-sender)');
-                if (contentDiv) {
-                    contentDiv.textContent = data.message.message;
-                    // Remove italic style if it was deleted before (though it shouldn't be possible here)
-                    contentDiv.style.fontStyle = 'normal';
-                    contentDiv.style.color = '';
+                // Find the main message content div
+                const messageDivs = Array.from(messageElement.querySelectorAll(':scope > div'));
+                const mainContentDiv = messageDivs.find(div => 
+                    !div.classList.contains('message-sender') && 
+                    !div.classList.contains('message-time') &&
+                    !div.style.borderLeft
+                );
+
+                if (mainContentDiv) {
+                    mainContentDiv.textContent = data.message.message;
+                    // Remove italic style if it was deleted before
+                    mainContentDiv.style.fontStyle = 'normal';
+                    mainContentDiv.style.color = '';
                 }
             }
 
@@ -2340,6 +2526,29 @@ document.getElementById('confirmEditMessageBtn').addEventListener('click', async
 });
 document.getElementById('closeEditMessageBtn').addEventListener('click', () => {
     document.getElementById('editMessagePopup').style.display = 'none';
+});
+// Reply message popup event listeners
+document.getElementById('cancelReplyMessageBtn').addEventListener('click', () => {
+    document.getElementById('replyMessagePopup').style.display = 'none';
+});
+
+document.getElementById('confirmReplyMessageBtn').addEventListener('click', async () => {
+    const messageId = document.getElementById('replyMessagePopup').dataset.messageId;
+    const replyMessage = document.getElementById('replyMessageText').value.trim();
+    
+    if (!replyMessage) {
+        alert('Reply message cannot be empty');
+        return;
+    }
+
+    const success = await replyToMessage(messageId, replyMessage);
+    if (success) {
+        document.getElementById('replyMessagePopup').style.display = 'none';
+    }
+});
+
+document.getElementById('closeReplyMessageBtn').addEventListener('click', () => {
+    document.getElementById('replyMessagePopup').style.display = 'none';
 });
         // Initialize chat list
         fetchChats();

@@ -210,7 +210,7 @@ app.post("/sendMessage/:chatId",validateToken,async (req,res,next) => {
         const [updateLatestMessage] = await pool.query(query,[newChatMessage.insertId,chatId])
         
         
-        console.log(newChatMessage.insertId,chatId);
+        // console.log(newChatMessage.insertId,chatId);
        
         const getChatMessage = await getMessage(newChatMessage.insertId);
         
@@ -219,6 +219,7 @@ app.post("/sendMessage/:chatId",validateToken,async (req,res,next) => {
         const response = {
             message:getChatMessage   
         }
+        
         console.log(response);
         
         return res.status(200).json(response)
