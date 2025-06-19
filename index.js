@@ -83,17 +83,22 @@ app.post('/login',async (req,res,next) => {
         return res.status(400).json({message:"invalid password"})
     }
 
+    
+
     const jwtPayload = {id:rows[0].id,username:rows[0].username,email:rows[0].email}
+    
+    
     const tokens = await generateTokens(jwtPayload,rows[0].id); 
-
-
+    console.log(tokens);
+    
     res.cookie('refreshToken', tokens.refreshToken, {
         httpOnly: true,
         sameSite: 'Strict',
         secure: false, 
         maxAge: 30 * 24 * 60 * 60 * 1000,
     });   
-   
+    
+    
     
     return res.status(200).json({user:rows[0],token:tokens.acsesstoken})
 
@@ -293,12 +298,12 @@ app.get("/getMessages/:chatId",validateToken,async (req,res,next) => {
         }
         // console.log(response);
 
-        const readMessagesQuery = `SELECT messageReaders.userId as readerId, messageId, username,email, messageReaders.created_at
-         FROM messageReaders INNER JOIN messages
-         ON messages.id = messageReaders.messageId  INNER JOIN users
-         ON users.id = messageReaders.userId  where messages.sender_id=?`
+        // const readMessagesQuery = `SELECT messageReaders.userId as readerId, messageId, username,email, messageReaders.created_at
+        //  FROM messageReaders INNER JOIN messages
+        //  ON messages.id = messageReaders.messageId  INNER JOIN users
+        //  ON users.id = messageReaders.userId  where messages.sender_id=?`
 
-        const [readMessages] = await pool.query(readMessagesQuery,[req.userId]);
+        // const [readMessages] = await pool.query(readMessagesQuery,[req.userId]);
 
         
         
@@ -307,7 +312,8 @@ app.get("/getMessages/:chatId",validateToken,async (req,res,next) => {
         }
         
         
-        return res.status(200).json({messages:response,messageReaders:readMessages});
+        
+        return res.status(200).json({messages:response});
     } catch (error) {
         return res.status(500).json({ message: "Server error", error: error.message });
     }
@@ -709,6 +715,10 @@ app.post('/logout',validateToken,(req,res,next) => {
 app.use(errorHandling);
 
 
+
+
+
+const userArr = [];
 io.on('connection', (socket) => {
     // console.log('A user connected');
     
@@ -742,9 +752,43 @@ io.on('connection', (socket) => {
     socket.on('deleteParticipant',(userId,chatId) => {
         io.to(`user_${userId}`).emit('deleteParticipant',chatId);
     });
+
+   socket.on('userTyping', (userObj) => {
+        console.log(userObj);
+        
+        // Check if user is already in the array
+        const existingUserIndex = userArr.findIndex(u => 
+            u.id === userObj.id && u.chatId === userObj.chatId
+        );
+        
+        if (existingUserIndex === -1) {
+            userArr.push(userObj);
+        }
+        console.log("skizb");
+        
+        const typingUsers = userArr.filter((obj) => obj.chatId === userObj.chatId);
+        io.to(userObj.chatId).emit('typing users', typingUsers, userObj.id);
+    });
+
+    socket.on('stopTyping', (userObj) => {
+        // Remove the user from the array
+        const index = userArr.findIndex(u => 
+            u.id === userObj.id && u.chatId === userObj.chatId
+        );
+        
+        if (index !== -1) {
+            userArr.splice(index, 1);
+        }
+
+        const typingUsers = userArr.filter((obj) => obj.chatId === userObj.chatId);
+        console.log("stop");
+        
+        io.to(userObj.chatId).emit('typing users', typingUsers, userObj.id);
+    });
+
 });
 
-// const PORT = process.env.PORT || 3000;
+
 server.listen(3000);
 
 module.exports = {io}

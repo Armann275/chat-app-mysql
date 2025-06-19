@@ -216,6 +216,49 @@
     gap: 10px;
     justify-content: flex-end;
 }
+
+/* Typing indicator styles */
+.typing-indicator {
+    height: 18px;
+    font-size: 12px;
+    color: var(--viber-time);
+    display: flex;
+    align-items: center;
+}
+
+.typing-dots {
+    display: inline-flex;
+    margin-left: 2px;
+}
+
+.typing-dots span {
+    animation: typingAnimation 1.4s infinite both;
+    opacity: 0;
+}
+
+.typing-dots span:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.typing-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typingAnimation {
+    0% {
+        opacity: 0.2;
+    }
+    20% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.2;
+    }
+}
 .edit-message-cancel {
     background-color: #ddd;
     color: #333;
@@ -741,7 +784,15 @@
             <div class="chat-header-info">
                 <div class="chat-title" id="chatTitle">Group Name</div>
                 <div class="chat-status" id="chatStatus">online</div>
+                <!-- Add this inside the chat-header div, after the chat-status div -->
+<div class="typing-indicator" id="typingIndicator" style="display: none; font-size: 12px; color: var(--viber-time);">
+    <span id="typingText"></span>
+    <span class="typing-dots">
+        <span>.</span><span>.</span><span>.</span>
+    </span>
+</div>
             </div>
+            
             <div class="chat-actions">
                 <button class="chat-action-btn" id="viewUsersBtn">👥</button>
                 <button class="chat-action-btn" id="addUsersBtn">➕</button>
@@ -913,6 +964,9 @@
         
         let token = localStorage.getItem('token');
         const userId = +localStorage.getItem('userId');
+        const username = localStorage.getItem('username');
+        
+        
         socket.emit("join user", userId);
 
         if (!token) {
@@ -931,6 +985,8 @@
         let hasAdmin = false;
         let isRefreshingToken = false;
         let refreshQueue = [];
+        let typingTimeout;
+        let isTyping = false;
 
         // Store messages by chat ID
         let messagesData = {};
@@ -1238,16 +1294,25 @@
 
     // Send message handler - using onclick assignment instead of addEventListener
     document.getElementById('sendMessage').onclick = async () => {
-        const message = chatInput.value.trim();
-        if (message) {
-            const response = await sendMessageToAPI(currentChatId, message);
-            if (response && response.success) {
-                chatInput.value = '';
-            } else if (response && !response.success) {
-                alert('Failed to send message');
-            }
+    const message = chatInput.value.trim();
+    if (message) {
+        // Clear typing state when sending
+        if (isTyping) {
+            isTyping = false;
+            clearTimeout(typingTimeout);
+            socket.emit('stopTyping', {
+                id: userId,
+                chatId: currentChatId,
+                username: username
+            });
         }
-    };
+        
+        const response = await sendMessageToAPI(currentChatId, message);
+        if (response && response.success) {
+            chatInput.value = '';
+        }
+    }
+};
 
     // Also send message on Enter key - using onkeypress assignment
     chatInput.onkeypress = async (e) => {
@@ -2369,7 +2434,56 @@ function showEditMessagePopup(messageId, currentMessage) {
     // Store the message ID in the popup for later use
     document.getElementById('editMessagePopup').dataset.messageId = messageId;
 }
+function handleTyping() {
+    if (!currentChatId) return;
+    
+    if (!isTyping) {
+        isTyping = true;
+        socket.emit('userTyping', {
+            id: userId,
+            chatId: currentChatId,
+            username: username
+        });
+    }
+    
+    // Clear any existing timeout
+    clearTimeout(typingTimeout);
+    
+    // Set a timeout to stop typing after 2 seconds of inactivity
+    typingTimeout = setTimeout(() => {
+        isTyping = false;
+        socket.emit('stopTyping', {
+            id: userId,
+            chatId: currentChatId,
+            username: username
+        });
+    }, 2000);
+}
 
+// Function to display typing indicators
+function showTypingIndicators(typingUsers, senderId) {
+    // Don't show typing indicator for our own typing
+    if (senderId === userId) return;
+    
+    const typingIndicator = document.getElementById('typingIndicator');
+    const typingText = document.getElementById('typingText');
+    
+    if (typingUsers.length === 0) {
+        typingIndicator.style.display = 'none';
+        return;
+    }
+    
+    // Get the last 2 users who are typing
+    const lastTwoTyping = typingUsers.slice(-2);
+    
+    if (lastTwoTyping.length === 1) {
+        typingText.textContent = `${lastTwoTyping[0].username} is typing`;
+    } else {
+        typingText.textContent = `${lastTwoTyping[0].username} and ${lastTwoTyping[1].username} are typing`;
+    }
+    
+    typingIndicator.style.display = 'block';
+}
 // Function to edit message
 async function editMessage(messageId, newMessage) {
     try {
@@ -2550,7 +2664,21 @@ document.getElementById('confirmReplyMessageBtn').addEventListener('click', asyn
 document.getElementById('closeReplyMessageBtn').addEventListener('click', () => {
     document.getElementById('replyMessagePopup').style.display = 'none';
 });
-        // Initialize chat list
+
+document.getElementById('chatInput').addEventListener('input', handleTyping);
+
+document.getElementById('chatInput').addEventListener('input', (e) => {
+    handleTyping(); // This will handle the typing indicators
+    
+    // Your existing input handling if you have any
+});
+
+socket.on('typing users', (typingUsers, senderId) => {
+    showTypingIndicators(typingUsers, senderId);
+});
+
+
+        
         fetchChats();
     </script>
 </body>

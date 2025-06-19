@@ -45,6 +45,7 @@
                     // Login successful, store JWT token in localStorage
                     localStorage.setItem('token', data.token);
                     localStorage.setItem('userId',data.user.id);
+                    localStorage.setItem('username',data.user.username);
                     
                     
                     alert("Login successful! Redirecting to the main page...");
@@ -61,3 +62,8 @@
     </script>
 </body>
 </html>
+
+
+
+
+
