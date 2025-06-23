@@ -10,6 +10,7 @@ const http = require('http');
 const server = http.createServer(app);
 const io = socketIo(server);
 const {pool} = require('./connectDb/db');
+
 const path = require('path');
 const {validateUserInChat,checkUsersIsNotInChat,
     validateUsers,getChatParticipants,
@@ -18,6 +19,7 @@ const {validateUserInChat,checkUsersIsNotInChat,
 const {generateTokens} = require('./token/token');    
 const { ApiError } = require('./exeptions/api-error');
 const {errorHandling} = require('./middlewares/error-handling');
+const { deepStrictEqual } = require('assert');
 app.use(cookieParser());
 
 
@@ -785,6 +787,14 @@ io.on('connection', (socket) => {
         
         io.to(userObj.chatId).emit('typing users', typingUsers, userObj.id);
     });
+
+    socket.on('messageDeleted',(chatId,message) => {
+        io.to(chatId).emit('messageDeleted',chatId,message);
+    });
+
+    socket.on('messageEdited',(chatId,message) => {
+        io.to(chatId).emit('messageEdited',chatId,message);
+    }); 
 
 });
 

@@ -1540,6 +1540,7 @@
         showNotification('Error deleting message');
     }
 }
+
         // Send message to the API
         async function sendMessageToAPI(chatId, message) {
             try {
@@ -2259,41 +2260,7 @@ async function replyToMessage(messageId, replyMessage) {
         });
 
         // Handle message deleted event from socket.io
-        socket.on('messageDeleted', (chatId, updatedMessage) => {
-            // Update the message in our messagesData storage
-            if (messagesData[chatId]) {
-                const messageIndex = messagesData[chatId].findIndex(m => m.id === updatedMessage.id);
-                if (messageIndex !== -1) {
-                    messagesData[chatId][messageIndex] = updatedMessage;
-                }
-            }
-            
-            // Update the message in the UI if this is the current chat
-            if (chatId === currentChatId) {
-                const messageElement = document.querySelector(`.message[data-message-id="${updatedMessage.id}"]`);
-                if (messageElement) {
-                    const messageContent = messageElement.querySelector('div:not(.message-time):not(.message-sender)');
-                    if (messageContent) {
-                        messageContent.innerHTML = `<i>${updatedMessage.message}</i>`;
-                    }
-                    
-                    // Remove the delete button if it exists
-                    const deleteBtn = messageElement.querySelector('.delete-message-btn');
-                    if (deleteBtn) {
-                        deleteBtn.remove();
-                    }
-                }
-            }
-            
-            // Update the last message in the chat list if this was the last message
-            const chatItem = document.querySelector(`.chat-item[data-chat-id="${chatId}"]`);
-            if (chatItem) {
-                const lastMessageElement = chatItem.querySelector('.chat-last-message');
-                if (lastMessageElement) {
-                    lastMessageElement.firstChild.textContent = formatLastMessage(updatedMessage);
-                }
-            }
-        });
+        
 
         // Handle new chat event from socket.io
         socket.on('newChat', (chat, participants) => {
@@ -2375,7 +2342,85 @@ async function replyToMessage(messageId, replyMessage) {
             // Update the chat list to reflect any changes
             fetchChats();
         });
+// Handle message deleted event from socket.io
+socket.on('messageDeleted', (chatId, deletedMessage) => {
+    // Update the message in messagesData if it exists
+    if (messagesData[chatId]) {
+        const messageIndex = messagesData[chatId].findIndex(m => m.id === deletedMessage.id);
+        if (messageIndex !== -1) {
+            messagesData[chatId][messageIndex] = deletedMessage;
+        }
+    }
 
+    // If this is the current chat, update the UI
+    if (chatId === currentChatId) {
+        const messageElement = document.querySelector(`.message[data-message-id="${deletedMessage.id}"]`);
+        if (messageElement) {
+            // Remove action buttons
+            const deleteBtn = messageElement.querySelector('.delete-message-btn');
+            if (deleteBtn) deleteBtn.remove();
+            
+            const editBtn = messageElement.querySelector('.edit-message-btn');
+            if (editBtn) editBtn.remove();
+
+            const replyBtn = messageElement.querySelector('.reply-message-btn');
+            if (replyBtn) replyBtn.remove();
+
+            // Get all direct child divs of the message
+            const messageDivs = Array.from(messageElement.querySelectorAll(':scope > div'));
+
+            // The main message content is always the last div before message-time
+            const mainContentDiv = messageDivs.find(div => 
+                !div.classList.contains('message-sender') && 
+                !div.classList.contains('message-time') &&
+                !div.style.borderLeft
+            );
+
+            if (mainContentDiv) {
+                mainContentDiv.textContent = deletedMessage.message;
+                mainContentDiv.style.fontStyle = 'italic';
+                mainContentDiv.style.color = '#888';
+            }
+
+            // Keep the reply preview exactly as is - don't modify it
+        }
+    }
+});
+
+
+        // Handle message edited event from socket.io
+socket.on('messageEdited', (chatId, editedMessage) => {
+    // Update the message in messagesData if it exists
+    if (messagesData[chatId]) {
+        const messageIndex = messagesData[chatId].findIndex(m => m.id === editedMessage.id);
+        if (messageIndex !== -1) {
+            messagesData[chatId][messageIndex] = editedMessage;
+        }
+    }
+
+    // If this is the current chat, update the UI
+    if (chatId === currentChatId) {
+        const messageElement = document.querySelector(`.message[data-message-id="${editedMessage.id}"]`);
+        if (messageElement) {
+            // Find the main message content div
+            const messageDivs = Array.from(messageElement.querySelectorAll(':scope > div'));
+            const mainContentDiv = messageDivs.find(div => 
+                !div.classList.contains('message-sender') && 
+                !div.classList.contains('message-time') &&
+                !div.style.borderLeft
+            );
+
+            if (mainContentDiv) {
+                mainContentDiv.textContent = editedMessage.message;
+                // Remove italic style if it was deleted before
+                mainContentDiv.style.fontStyle = 'normal';
+                mainContentDiv.style.color = '';
+            }
+
+            // Keep the reply preview exactly as is - don't modify it
+        }
+    }
+});
         // Handle chat removal
         socket.on('removeChat', (chatId) => {
             // Remove the chat from the chat list
@@ -2533,6 +2578,7 @@ async function editMessage(messageId, newMessage) {
 
             // Emit to others
             socket.emit('messageEdited', currentChatId, data.message);
+            
 
             showNotification('Message edited successfully');
             return true;
